@@ -1,6 +1,9 @@
 package treebank
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"testing"
 )
 
@@ -17,42 +20,22 @@ var tokTestCases = []tokenizerCase{
 	{"(ab cd)", []string{"(", "ab", "cd", ")"}},
 	{"ab(cd e ) ", []string{"ab", "(", "cd", "e", ")"}}}
 
-func checkPart(p Part, s string, t *testing.T) {
-	if p.Start < 0 || p.Start >= len(s) || p.End < p.Start || p.End > len(s) {
-		t.Errorf("invalid part %v; string len is %d\n", p, len(s))
-	}
-}
-
-func checkKind(s string, k Kind, t *testing.T) {
-	if s == "(" && k != OPEN {
-		t.Errorf("expected kind %v; got %v\n", OPEN, k)
-	}
-	if s == ")" && k != CLOSE {
-		t.Errorf("expected kind %v; got %v\n", CLOSE, k)
-	}
-	if s != "(" && s != ")" && k != WORD {
-		t.Errorf("expected kind %v; got %v\n", WORD, k)
-	}
-}
-
 func TestTokenizerPeekOnce(t *testing.T) {
 	for _, c := range tokTestCases {
-		tok := NewTokenizer(c.input)
-		p, k, e := tok.Peek()
+		input := bytes.NewReader([]byte(c.input))
+		tok := newTokenizer(input)
+		s, k, e := tok.Peek()
 		if len(c.tokens) > 0 {
 			if e != nil {
-				t.Errorf("expected nil error; got %v\n", e)
+				t.Errorf("expected nil error; got %v at first peek of %s\n", e, formatInput(c.input, input))
 			}
-			checkPart(p, c.input, t)
-			a := c.input[p.Start:p.End]
-			b := tok.Token(p)
-			if a != b {
-				t.Errorf("expected token %s; got %s from %v\n", a, b, p)
+			if s != c.tokens[0] {
+				t.Errorf("expected token %s; got %s at first peek of %s\n", c.tokens[0], s, formatInput(c.input, input))
 			}
-			checkKind(tok.Token(p), k, t)
+			checkKind(s, k, t)
 		} else {
-			if e != EndOfInput {
-				t.Errorf("expected %v; got (%v, %v, %v)\n", EndOfInput, p, k, e)
+			if e != io.EOF {
+				t.Errorf("expected EOF; got (%v, %v, %v) at first peek of %s\n", s, k, e, formatInput(c.input, input))
 			}
 		}
 	}
@@ -60,44 +43,43 @@ func TestTokenizerPeekOnce(t *testing.T) {
 
 func TestTokenizerNext(t *testing.T) {
 	for _, c := range tokTestCases {
-		tok := NewTokenizer(c.input)
+		input := bytes.NewReader([]byte(c.input))
+		tok := newTokenizer(input)
 		tok_id := 0
-		for p, k, e := tok.Next(); e == nil; p, k, e = tok.Next() {
-			checkPart(p, c.input, t)
-			a := c.tokens[tok_id]
-			b := tok.Token(p)
-			if a != b {
-				t.Errorf("expected %s; got %s\n", a, b)
+		for s, k, e := tok.Next(); e == nil; s, k, e = tok.Next() {
+			ss := c.tokens[tok_id]
+			if s != ss {
+				t.Errorf("expected %s; got %s at %s\n", s, ss, formatInput(c.input, input))
 			}
-			checkKind(b, k, t)
+			checkKind(s, k, t)
 			tok_id++
 		}
 		if tok_id != len(c.tokens) {
-			t.Errorf("expected %d tokens; got %s\n", len(c.tokens), tok_id)
+			t.Errorf("expected %d tokens; got %d at %s\n", len(c.tokens), tok_id, formatInput(c.input, input))
 		}
 	}
 }
 
 func TestTokenizerPeekPeekNext(t *testing.T) {
 	for _, c := range tokTestCases {
-		tok := NewTokenizer(c.input)
+		input := bytes.NewReader([]byte(c.input))
+		tok := newTokenizer(input)
 		for i := 0; i < len(c.tokens); i++ {
-			p0, k0, e0 := tok.Peek()
-			p1, k1, e1 := tok.Peek()
-			if p0 != p1 || k0 != k1 || e0 != e1 {
+			s0, k0, e0 := tok.Peek()
+			s1, k1, e1 := tok.Peek()
+			if s0 != s1 || k0 != k1 || e0 != e1 {
 				t.Errorf("two Peek gave different results: (%v, %v, %v) vs (%v, %v, %v) at input %s, token %d\n",
-					p0, k0, e0, p1, k1, e1, c.input, i)
+					s0, k0, e0, s1, k1, e1, formatInput(c.input, input), i)
 			}
-			p2, k2, e2 := tok.Next()
-			if p1 != p2 || k1 != k2 || e1 != e2 {
+			s2, k2, e2 := tok.Next()
+			if s1 != s2 || k1 != k2 || e1 != e2 {
 				t.Errorf("Peek and Next gave different results: (%v, %v, %v) vs (%v, %v, %v) at input %s, token %d\n",
-					p1, k1, e1, p2, k2, e2, c.input, i)
+					s1, k1, e1, 2, k2, e2, formatInput(c.input, input), i)
 			}
-			a := c.tokens[i]
-			b := tok.Token(p2)
-			if a != b {
+			s := c.tokens[i]
+			if s2 != s {
 				t.Errorf("expected %s; got %s at input %s, token %d\n",
-					a, b, c.input, i)
+					s, s2, formatInput(c.input, input), i)
 			}
 		}
 	}
@@ -120,6 +102,86 @@ var parseCases = []parserCase{
 	{"((a b)", Node{}, true},
 }
 
+func TestParseSingle(t *testing.T) {
+	for _, c := range parseCases {
+		input := bytes.NewReader([]byte(c.input))
+		tree, err := Parse(input)
+		if (err != nil) != c.err {
+			s := "no error"
+			if c.err {
+				s = "error"
+			}
+			t.Errorf("expected %s; got %v at input %s\n", s, err, formatInput(c.input, input))
+		}
+		if err == nil && !equiv(tree, c.tree) {
+			t.Errorf("expected %v; got %v at input %s\n", c.tree, tree, formatInput(c.input, input))
+		}
+	}
+}
+
+func TestParseMultiple(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	for _, c := range parseCases {
+		if c.err {
+			continue
+		}
+		n, e := buf.WriteString(c.input)
+		if n != len(c.input) || e != nil {
+			t.Fatal("error in creating test case!")
+		}
+		n, e = buf.WriteString("\n")
+		if n != 1 || e != nil {
+			t.Fatal("error in creating test case!")
+		}
+	}
+	for _, c := range parseCases {
+		if c.err {
+			continue
+		}
+		tree, err := Parse(buf)
+		if err != nil {
+			t.Errorf("expected nil; got %v at input %s\n", err, c.input)
+		}
+		if err == nil && !equiv(tree, c.tree) {
+			t.Errorf("expected %v; got %v at input %s\n", c.tree, tree, c.input)
+		}
+	}
+}
+
+var noParseCases = []string{"(())", "  (())  ", " ( ( ) ) "}
+
+func TestNoParse(t *testing.T) {
+	for _, c := range noParseCases {
+		input := bytes.NewReader([]byte(c))
+		_, err := Parse(input)
+		if err != NoParse {
+			t.Errorf("expected NoParse; got %v at input %s\n", err, formatInput(c, input))
+		}
+	}
+}
+
+func checkKind(s string, k kind, t *testing.T) {
+	if s == "(" && k != OPEN {
+		t.Errorf("expected kind %v; got %v\n", OPEN, k)
+	}
+	if s == ")" && k != CLOSE {
+		t.Errorf("expected kind %v; got %v\n", CLOSE, k)
+	}
+	if s != "(" && s != ")" && k != WORD {
+		t.Errorf("expected kind %v; got %v\n", WORD, k)
+	}
+}
+
+type unreader interface {
+	// Len returns the number of unread bytes (e.g. bytes.Reader)
+	Len() int
+}
+
+func formatInput(s string, r unreader) string {
+	unread := r.Len()
+	return fmt.Sprintf("\"%s.%s\"", s[:len(s)-unread], s[len(s)-unread:])
+}
+
 func equiv(a Node, b Node) bool {
 	if a.Label != b.Label {
 		return false
@@ -133,21 +195,4 @@ func equiv(a Node, b Node) bool {
 		}
 	}
 	return true
-}
-
-func TestParse(t *testing.T) {
-	for _, c := range parseCases {
-		tok := NewTokenizer(c.input)
-		tree, err := Parse(tok)
-		if (err != nil) != c.err {
-			s := "no error"
-			if c.err {
-				s = "error"
-			}
-			t.Errorf("expected %s; got %v at input %s.%s\n", s, err, c.input[0:tok.Pos()], c.input[tok.Pos():len(c.input)])
-		}
-		if err == nil && !equiv(tree, c.tree) {
-			t.Fatalf("expected %v; got %v at input %s.%s\n", c.tree, tree, c.input[0:tok.Pos()], c.input[tok.Pos():len(c.input)])
-		}
-	}
 }
