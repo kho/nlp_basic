@@ -32,15 +32,15 @@ func Parse(input io.ByteScanner) (node Node, err error) {
 		return
 	}
 
-	// ...
 	node, err = parseNode(tok)
-	if err != nil {
+	// If the error is NoParse, we still need to consume the closing )
+	if err != nil && err != NoParse {
 		return
 	}
 
 	// )
-	_, kind, err = tok.Next()
-	if err != nil || kind != CLOSE {
+	_, kind, err2 := tok.Next()
+	if err2 != nil || kind != CLOSE {
 		err = NoCloseParen
 	}
 
@@ -139,6 +139,7 @@ func parseNode(tok *tokenizer) (node Node, err error) {
 		return
 	}
 	if kind == CLOSE {
+		tok.Next()
 		err = NoParse
 		return
 	}

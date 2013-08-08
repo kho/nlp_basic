@@ -28,15 +28,15 @@ func TestTokenizerPeekOnce(t *testing.T) {
 		s, k, e := tok.Peek()
 		if len(c.tokens) > 0 {
 			if e != nil {
-				t.Errorf("expected nil error; got %v at first peek of %s\n", e, formatInput(c.input, input))
+				t.Errorf("expected nil error; got %q at first peek of %q\n", e, formatInput(c.input, input))
 			}
 			if s != c.tokens[0] {
-				t.Errorf("expected token %s; got %s at first peek of %s\n", c.tokens[0], s, formatInput(c.input, input))
+				t.Errorf("expected token %q; got %q at first peek of %q\n", c.tokens[0], s, formatInput(c.input, input))
 			}
 			checkKind(s, k, t)
 		} else {
 			if e != io.EOF {
-				t.Errorf("expected EOF; got (%v, %v, %v) at first peek of %s\n", s, k, e, formatInput(c.input, input))
+				t.Errorf("expected EOF; got (%q, %v, %q) at first peek of %q\n", s, k, e, formatInput(c.input, input))
 			}
 		}
 	}
@@ -50,13 +50,13 @@ func TestTokenizerNext(t *testing.T) {
 		for s, k, e := tok.Next(); e == nil; s, k, e = tok.Next() {
 			ss := c.tokens[tok_id]
 			if s != ss {
-				t.Errorf("expected %s; got %s at %s\n", s, ss, formatInput(c.input, input))
+				t.Errorf("expected %q; got %q at %q\n", s, ss, formatInput(c.input, input))
 			}
 			checkKind(s, k, t)
 			tok_id++
 		}
 		if tok_id != len(c.tokens) {
-			t.Errorf("expected %d tokens; got %d at %s\n", len(c.tokens), tok_id, formatInput(c.input, input))
+			t.Errorf("expected %d tokens; got %d at %q\n", len(c.tokens), tok_id, formatInput(c.input, input))
 		}
 	}
 }
@@ -69,17 +69,17 @@ func TestTokenizerPeekPeekNext(t *testing.T) {
 			s0, k0, e0 := tok.Peek()
 			s1, k1, e1 := tok.Peek()
 			if s0 != s1 || k0 != k1 || e0 != e1 {
-				t.Errorf("two Peek gave different results: (%v, %v, %v) vs (%v, %v, %v) at input %s, token %d\n",
+				t.Errorf("two Peek gave different results: (%q, %v, %q) vs (%q, %v, %q) at input %q, token %d\n",
 					s0, k0, e0, s1, k1, e1, formatInput(c.input, input), i)
 			}
 			s2, k2, e2 := tok.Next()
 			if s1 != s2 || k1 != k2 || e1 != e2 {
-				t.Errorf("Peek and Next gave different results: (%v, %v, %v) vs (%v, %v, %v) at input %s, token %d\n",
+				t.Errorf("Peek and Next gave different results: (%q, %v, %q) vs (%q, %v, %q) at input %q, token %d\n",
 					s1, k1, e1, 2, k2, e2, formatInput(c.input, input), i)
 			}
 			s := c.tokens[i]
 			if s2 != s {
-				t.Errorf("expected %s; got %s at input %s, token %d\n",
+				t.Errorf("expected %q; got %q at input %q, token %d\n",
 					s, s2, formatInput(c.input, input), i)
 			}
 		}
@@ -112,10 +112,10 @@ func TestParseSingle(t *testing.T) {
 			if c.err {
 				s = "error"
 			}
-			t.Errorf("expected %s; got %v at input %s\n", s, err, formatInput(c.input, input))
+			t.Errorf("expected %s; got %q at input %q\n", s, err, formatInput(c.input, input))
 		}
 		if err == nil && !equiv(tree, c.tree) {
-			t.Errorf("expected %v; got %v at input %s\n", c.tree, tree, formatInput(c.input, input))
+			t.Errorf("expected %v; got %v at input %q\n", c.tree, tree, formatInput(c.input, input))
 		}
 	}
 }
@@ -141,22 +141,37 @@ func TestParseMultiple(t *testing.T) {
 		}
 		tree, err := Parse(buf)
 		if err != nil {
-			t.Errorf("expected nil; got %v at input %s\n", err, c.input)
+			t.Errorf("expected nil; got %q at input %q\n", err, c.input)
 		}
 		if err == nil && !equiv(tree, c.tree) {
-			t.Errorf("expected %v; got %v at input %s\n", c.tree, tree, c.input)
+			t.Errorf("expected %v; got %v at input %q\n", c.tree, tree, c.input)
 		}
 	}
 }
 
 var noParseCases = []string{"(())", "  (())  ", " ( ( ) ) "}
 
-func TestNoParse(t *testing.T) {
+func TestParseNoParse(t *testing.T) {
 	for _, c := range noParseCases {
 		input := strings.NewReader(c)
 		_, err := Parse(input)
 		if err != NoParse {
-			t.Errorf("expected NoParse; got %v at input %s\n", err, formatInput(c, input))
+			t.Errorf("expected NoParse; got %q at input %q\n", err, formatInput(c, input))
+		}
+	}
+}
+
+var mixedCases = []string{"(()) ((a a))", "((a a)) (()) ((a a))"}
+
+func TestParseMixed(t *testing.T) {
+	for _, c := range mixedCases {
+		input := strings.NewReader(c)
+		_, err := Parse(input)
+		for err == nil || err == NoParse {
+			_, err = Parse(input)
+		}
+		if err != io.EOF {
+			t.Errorf("expected EOF; got %q at input %q\n", err, formatInput(c, input))
 		}
 	}
 }
@@ -180,7 +195,7 @@ type unreader interface {
 
 func formatInput(s string, r unreader) string {
 	unread := r.Len()
-	return fmt.Sprintf("\"%s.%s\"", s[:len(s)-unread], s[len(s)-unread:])
+	return fmt.Sprintf("%s.%s", s[:len(s)-unread], s[len(s)-unread:])
 }
 
 func equiv(a Node, b Node) bool {
