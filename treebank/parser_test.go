@@ -8,12 +8,12 @@ import (
 	"testing"
 )
 
-type tokenizerCase struct {
+type tokenizeCase struct {
 	input  string
 	tokens []string
 }
 
-var tokTestCases = []tokenizerCase{
+var tokTestCases = []tokenizeCase{
 	{"", nil},
 	{"(())", []string{"(", "(", ")", ")"}},
 	{"(a)", []string{"(", "a", ")"}},
@@ -21,11 +21,12 @@ var tokTestCases = []tokenizerCase{
 	{"(ab cd)", []string{"(", "ab", "cd", ")"}},
 	{"ab(cd e ) ", []string{"ab", "(", "cd", "e", ")"}}}
 
-func TestTokenizerPeekOnce(t *testing.T) {
+func TestParserPeekTokenOnce(t *testing.T) {
 	for _, c := range tokTestCases {
 		input := strings.NewReader(c.input)
-		tok := newTokenizer(input)
-		s, k, e := tok.Peek()
+		tok := NewParser(input)
+		b, k, e := tok.peekToken()
+		s := string(b)
 		if len(c.tokens) > 0 {
 			if e != nil {
 				t.Errorf("expected nil error; got %q at first peek of %q\n", e, formatInput(c.input, input))
@@ -42,12 +43,13 @@ func TestTokenizerPeekOnce(t *testing.T) {
 	}
 }
 
-func TestTokenizerNext(t *testing.T) {
+func TestParserNextToken(t *testing.T) {
 	for _, c := range tokTestCases {
 		input := strings.NewReader(c.input)
-		tok := newTokenizer(input)
+		tok := NewParser(input)
 		tok_id := 0
-		for s, k, e := tok.Next(); e == nil; s, k, e = tok.Next() {
+		for b, k, e := tok.nextToken(); e == nil; b, k, e = tok.nextToken() {
+			s := string(b)
 			ss := c.tokens[tok_id]
 			if s != ss {
 				t.Errorf("expected %q; got %q at %q\n", s, ss, formatInput(c.input, input))
@@ -61,18 +63,20 @@ func TestTokenizerNext(t *testing.T) {
 	}
 }
 
-func TestTokenizerPeekPeekNext(t *testing.T) {
+func TestParserPeekPeekNext(t *testing.T) {
 	for _, c := range tokTestCases {
 		input := strings.NewReader(c.input)
-		tok := newTokenizer(input)
+		tok := NewParser(input)
 		for i := 0; i < len(c.tokens); i++ {
-			s0, k0, e0 := tok.Peek()
-			s1, k1, e1 := tok.Peek()
+			b0, k0, e0 := tok.peekToken()
+			b1, k1, e1 := tok.peekToken()
+			s0, s1 := string(b0), string(b1)
 			if s0 != s1 || k0 != k1 || e0 != e1 {
 				t.Errorf("two Peek gave different results: (%q, %v, %q) vs (%q, %v, %q) at input %q, token %d\n",
 					s0, k0, e0, s1, k1, e1, formatInput(c.input, input), i)
 			}
-			s2, k2, e2 := tok.Next()
+			b2, k2, e2 := tok.nextToken()
+			s2 := string(b2)
 			if s1 != s2 || k1 != k2 || e1 != e2 {
 				t.Errorf("Peek and Next gave different results: (%q, %v, %q) vs (%q, %v, %q) at input %q, token %d\n",
 					s1, k1, e1, 2, k2, e2, formatInput(c.input, input), i)
@@ -103,10 +107,11 @@ var parseCases = []parserCase{
 	{"((a b)", Node{}, true},
 }
 
-func TestParseSingle(t *testing.T) {
+func TestParserSingle(t *testing.T) {
 	for _, c := range parseCases {
 		input := strings.NewReader(c.input)
-		tree, err := Parse(input)
+		parser := NewParser(input)
+		tree, err := parser.Next()
 		if (err != nil) != c.err {
 			s := "no error"
 			if c.err {
@@ -135,11 +140,12 @@ func TestParseMultiple(t *testing.T) {
 			t.Fatal("error in creating test case!")
 		}
 	}
+	parser := NewParser(buf)
 	for _, c := range parseCases {
 		if c.err {
 			continue
 		}
-		tree, err := Parse(buf)
+		tree, err := parser.Next()
 		if err != nil {
 			t.Errorf("expected nil; got %q at input %q\n", err, c.input)
 		}
@@ -154,7 +160,8 @@ var noParseCases = []string{"(())", "  (())  ", " ( ( ) ) "}
 func TestParseNoParse(t *testing.T) {
 	for _, c := range noParseCases {
 		input := strings.NewReader(c)
-		_, err := Parse(input)
+		parser := NewParser(input)
+		_, err := parser.Next()
 		if err != NoParse {
 			t.Errorf("expected NoParse; got %q at input %q\n", err, formatInput(c, input))
 		}
@@ -166,9 +173,10 @@ var mixedCases = []string{"(()) ((a a))", "((a a)) (()) ((a a))"}
 func TestParseMixed(t *testing.T) {
 	for _, c := range mixedCases {
 		input := strings.NewReader(c)
-		_, err := Parse(input)
+		parser := NewParser(input)
+		_, err := parser.Next()
 		for err == nil || err == NoParse {
-			_, err = Parse(input)
+			_, err = parser.Next()
 		}
 		if err != io.EOF {
 			t.Errorf("expected EOF; got %q at input %q\n", err, formatInput(c, input))
@@ -179,13 +187,15 @@ func TestParseMixed(t *testing.T) {
 func BenchmarkParse(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		input := strings.NewReader(benchmarkCases)
-		_, err := Parse(input)
+		parser := NewParser(input)
+		_, err := parser.Next()
 		for err == nil || err == NoParse {
-			_, err = Parse(input)
+			_, err = parser.Next()
 		}
 		if err != io.EOF {
 			b.Errorf("unexpected error %q", err)
 		}
+		//b.Log("Max token cap", cap(parser.token))
 	}
 }
 

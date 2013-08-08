@@ -14,16 +14,29 @@ var (
 	NoWordOrOpenParen = errors.New("expect word or (")
 )
 
-// Parse extracts the next parse tree from input. When succeeds, it
-// returns the node and nil error. For a special tree form (()), it
+// Parser parses treebank trees from a io.ByteScanner.
+type Parser struct {
+	input io.ByteScanner
+	// tokenizer information
+	peek  bool
+	token []byte
+	kind  kind
+	err   error
+}
+
+// NewParser creates a new parser that reads from input.
+func NewParser(input io.ByteScanner) *Parser {
+	return &Parser{input: input, token: make([]byte, 256)}
+}
+
+// Next extracts the next parse tree from input. When succeeds,
+// it returns the node and nil error. For a special tree form (()), it
 // returns NoParse. When it encounters an error when reading the first
 // token, it returns the IO error from the scanner; otherwise it
-// returns one of the above errors.
-func Parse(input io.ByteScanner) (node Node, err error) {
-	tok := newTokenizer(input)
-
+// returns one of the above parser errors.
+func (parser *Parser) Next() (node Node, err error) {
 	// (
-	_, kind, err := tok.Next()
+	_, kind, err := parser.nextToken()
 	if err != nil {
 		return
 	}
@@ -32,14 +45,14 @@ func Parse(input io.ByteScanner) (node Node, err error) {
 		return
 	}
 
-	node, err = parseNode(tok)
+	node, err = parser.parseNode()
 	// If the error is NoParse, we still need to consume the closing )
 	if err != nil && err != NoParse {
 		return
 	}
 
 	// )
-	_, kind, err2 := tok.Next()
+	_, kind, err2 := parser.nextToken()
 	if err2 != nil || kind != CLOSE {
 		err = NoCloseParen
 	}
@@ -47,17 +60,7 @@ func Parse(input io.ByteScanner) (node Node, err error) {
 	return
 }
 
-// tokenizer tokenizes bytes from input.
-type tokenizer struct {
-	input io.ByteScanner
-	peek  bool
-	// these are only valid when peek is true
-	token string
-	kind  kind
-	err   error
-}
-
-// kind is the kind of token found by the tokenizer. It only takes the
+// kind is the kind of token found by the parser. It only takes the
 // following 3 constant values.
 type kind int
 
@@ -67,92 +70,86 @@ const (
 	WORD       = iota
 )
 
-func newTokenizer(input io.ByteScanner) *tokenizer {
-	return &tokenizer{input: input}
-}
-
-// Peek peeks at the next token. See Next() for its return values.
-func (tok *tokenizer) Peek() (string, kind, error) {
-	if !tok.peek {
-		tok.token, tok.kind, tok.err = tok.Next()
-		tok.peek = true
+// peekToken peeks at the next token. See nextToken() for its return values.
+func (p *Parser) peekToken() ([]byte, kind, error) {
+	if !p.peek {
+		p.token, p.kind, p.err = p.nextToken()
+		p.peek = true
 	}
-	return tok.token, tok.kind, tok.err
+	return p.token, p.kind, p.err
 }
 
-// Next returns the next token as a string and its kind. Or when the
-// read fails, it returns the IO error.
-func (tok *tokenizer) Next() (token string, kind kind, err error) {
-	if tok.peek {
-		token, kind, err = tok.token, tok.kind, tok.err
-		tok.peek = false
+// nextToken returns the next token as a byte buffer and its kind. Or
+// when the read fails, it returns the IO error.
+func (p *Parser) nextToken() (token []byte, kind kind, err error) {
+	if p.peek {
+		token, kind, err = p.token, p.kind, p.err
+		p.peek = false
 		return
 	}
 	// Skip spaces
-	c, err := tok.input.ReadByte()
+	c, err := p.input.ReadByte()
 	for err == nil && (c == ' ' || c == '\t' || c == '\n') {
-		c, err = tok.input.ReadByte()
+		c, err = p.input.ReadByte()
 	}
 	if err != nil {
 		return
 	}
 	// Find out token's type
+	p.token = p.token[:0]
+	p.token = append(p.token, c)
 	if c == '(' {
-		token = "("
 		kind = OPEN
 	} else if c == ')' {
-		token = ")"
 		kind = CLOSE
 	} else {
-		tBuf := make([]byte, 1, 8)
-		tBuf[0] = c
 		// Continue until a white-space or parentheses
-		c, err = tok.input.ReadByte()
+		c, err = p.input.ReadByte()
 		for err == nil && c != ' ' && c != '\t' && c != '\n' && c != '(' && c != ')' {
-			tBuf = append(tBuf, c)
-			c, err = tok.input.ReadByte()
+			p.token = append(p.token, c)
+			c, err = p.input.ReadByte()
 		}
 		if err == nil {
-			tok.input.UnreadByte()
+			p.input.UnreadByte()
 		} else {
 			// We have successfully read something; postpone this error.
 			err = nil
 		}
 		kind = WORD
-		token = string(tBuf)
 	}
+	token = p.token
 	return
 }
 
 // parseNode tries to parse a tree node from tok. When succeeds, it
 // returns the tree node. When the next expr is no parse (()), it
 // returns NoParse. Otherwise it returns other errors defined above.
-func parseNode(tok *tokenizer) (node Node, err error) {
+func (p *Parser) parseNode() (node Node, err error) {
 	// (
-	_, kind, err := tok.Next()
+	_, kind, err := p.nextToken()
 	if err != nil || kind != OPEN {
 		err = NoOpenParen
 		return
 	}
-	_, kind, err = tok.Peek()
+	_, kind, err = p.peekToken()
 	if err != nil {
 		return
 	}
 	if kind == CLOSE {
-		tok.Next()
+		p.nextToken()
 		err = NoParse
 		return
 	}
 	// Category
-	token, kind, err := tok.Next()
+	token, kind, err := p.nextToken()
 	if err != nil || kind != WORD {
 		err = NoCategory
 		return
 	}
-	node.Label = token
+	node.Label = string(token)
 
 	// ( or word
-	token, kind, err = tok.Peek()
+	token, kind, err = p.peekToken()
 	if err != nil || kind == CLOSE {
 		err = NoWordOrOpenParen
 		return
@@ -160,10 +157,10 @@ func parseNode(tok *tokenizer) (node Node, err error) {
 
 	switch kind {
 	case WORD:
-		node.Children = append(node.Children, Node{token, nil})
-		tok.Next()
+		node.Children = append(node.Children, Node{string(token), nil})
+		p.nextToken() // consume the peeked token
 	case OPEN:
-		node.Children, err = parseChildren(tok)
+		node.Children, err = p.parseChildren()
 		if err != nil {
 			return
 		}
@@ -172,7 +169,7 @@ func parseNode(tok *tokenizer) (node Node, err error) {
 		return
 	}
 
-	_, kind, err = tok.Next()
+	_, kind, err = p.nextToken()
 	if err != nil || kind != CLOSE {
 		err = NoCloseParen
 		return
@@ -183,22 +180,23 @@ func parseNode(tok *tokenizer) (node Node, err error) {
 
 // parseChildren parses at least one node form and appends these to
 // children until it encounters the closing parenthesis or an error.
-func parseChildren(tok *tokenizer) (children []Node, err error) {
+func (p *Parser) parseChildren() (children []Node, err error) {
+	children = make([]Node, 0, 4)
 	// (...)
-	child, err := parseNode(tok)
+	child, err := p.parseNode()
 	if err != nil {
 		return
 	}
 	children = append(children, child)
 
-	_, kind, err := tok.Peek()
+	_, kind, err := p.peekToken()
 	for err == nil && kind == OPEN {
-		child, err = parseNode(tok)
+		child, err = p.parseNode()
 		if err != nil {
 			return
 		}
 		children = append(children, child)
-		_, kind, err = tok.Peek()
+		_, kind, err = p.peekToken()
 	}
 	err = nil
 	return
