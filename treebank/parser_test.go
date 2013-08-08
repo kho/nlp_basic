@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -22,7 +23,7 @@ var tokTestCases = []tokenizerCase{
 
 func TestTokenizerPeekOnce(t *testing.T) {
 	for _, c := range tokTestCases {
-		input := bytes.NewReader([]byte(c.input))
+		input := strings.NewReader(c.input)
 		tok := newTokenizer(input)
 		s, k, e := tok.Peek()
 		if len(c.tokens) > 0 {
@@ -43,7 +44,7 @@ func TestTokenizerPeekOnce(t *testing.T) {
 
 func TestTokenizerNext(t *testing.T) {
 	for _, c := range tokTestCases {
-		input := bytes.NewReader([]byte(c.input))
+		input := strings.NewReader(c.input)
 		tok := newTokenizer(input)
 		tok_id := 0
 		for s, k, e := tok.Next(); e == nil; s, k, e = tok.Next() {
@@ -62,7 +63,7 @@ func TestTokenizerNext(t *testing.T) {
 
 func TestTokenizerPeekPeekNext(t *testing.T) {
 	for _, c := range tokTestCases {
-		input := bytes.NewReader([]byte(c.input))
+		input := strings.NewReader(c.input)
 		tok := newTokenizer(input)
 		for i := 0; i < len(c.tokens); i++ {
 			s0, k0, e0 := tok.Peek()
@@ -104,7 +105,7 @@ var parseCases = []parserCase{
 
 func TestParseSingle(t *testing.T) {
 	for _, c := range parseCases {
-		input := bytes.NewReader([]byte(c.input))
+		input := strings.NewReader(c.input)
 		tree, err := Parse(input)
 		if (err != nil) != c.err {
 			s := "no error"
@@ -152,7 +153,7 @@ var noParseCases = []string{"(())", "  (())  ", " ( ( ) ) "}
 
 func TestNoParse(t *testing.T) {
 	for _, c := range noParseCases {
-		input := bytes.NewReader([]byte(c))
+		input := strings.NewReader(c)
 		_, err := Parse(input)
 		if err != NoParse {
 			t.Errorf("expected NoParse; got %v at input %s\n", err, formatInput(c, input))
@@ -173,7 +174,7 @@ func checkKind(s string, k kind, t *testing.T) {
 }
 
 type unreader interface {
-	// Len returns the number of unread bytes (e.g. bytes.Reader)
+	// Len returns the number of unread bytes (e.g. strings.Reader)
 	Len() int
 }
 
