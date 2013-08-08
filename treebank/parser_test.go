@@ -176,6 +176,19 @@ func TestParseMixed(t *testing.T) {
 	}
 }
 
+func BenchmarkParse(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		input := strings.NewReader(benchmarkCases)
+		_, err := Parse(input)
+		for err == nil || err == NoParse {
+			_, err = Parse(input)
+		}
+		if err != io.EOF {
+			b.Errorf("unexpected error %q", err)
+		}
+	}
+}
+
 func checkKind(s string, k kind, t *testing.T) {
 	if s == "(" && k != OPEN {
 		t.Errorf("expected kind %v; got %v\n", OPEN, k)
@@ -212,3 +225,18 @@ func equiv(a Node, b Node) bool {
 	}
 	return true
 }
+
+var benchmarkCases = `((aa (aaaaaa (aa aaa)) (aa (aa aaaaaa) (aa aaa) (aa aaa) (aaaaaa (aaaaaa (aaaaa (aa aaaaaa) (aa aaaaaa)) (aa (aaaaaa (aaaaaa aaaa)) (aa (aa (aaaaaa (aaaaaa aaaaa)) (aa (aa aaaaaa) (aaaaaa (aa aaaaaa)))) (aaa aaa))) (aa (aa aaaaaa))) (aa (aa aaaaaa) (aa (aaaaaa (a aaa) (aaa (aa (aaaaa (aa aaaaaa)) (aaaa (aa aaaaaa)) (aa (aa aaaaaaaaaaaaaaa) (aaa (a aaa))) (aaaa (aa aaaaaa)) (aa (aa aaaaaaaaa))) (aa aaa))) (aa aaa) (aaa (aa (aaaa (aa aaa)) (aa (aa aaaaaa))) (aaa aaa)) (aa (aa (aa aaa) (aaaaaa (aa (aa aaaaaa)) (aa (aa aaaaaaaaa) (aa aaaaaa)))) (aa (aa (aa aaaaaa) (aaaaaa (aa aaaaaaaaa))) (aa aaa) (aa (aa aaaaaa) (aaaaaa (aa aaaaaa))))))))) (aa aaa)))
+(())
+((aa (aa (aaaaaa (aa aaa) (aa (aa aaa) (aaa (a aaa))) (aa (aa aaaaaa))) (aa aaa) (aa (aa aaaaaa) (aa (aa aaa) (aaaaaa (aaaaaa (aaaaaa aaaaa)) (aa (aa aaa) (aaaaaa (aa (aa (aa (aaaaaa (aaaaaa aaaa)) (aa (aa (aaaaaa (aaaaaa aaaaa)) (aa (aaaaaa (aa aaaaaa)) (aaaa (aa aaa)) (aa (aa aaa)))) (aaa aaa))) (aa (aa aaaaa) (aa aaaaaa)))) (aa (aa aaaaaa)))))))) (aa aaa) (aa (aaaaaa (aa (aaaaaa (aaaaaa aaaa)) (aa (aa (aaaaaa (aaaaaa aaaaa)) (aa (aa aaa) (aaaaaa (aaaaaa aaaaa)))) (aaa aaa))) (aa (aa aaaaaa) (aa aaaaaa))) (aa (aaaa (aa aaaaaa)) (aa (aa aaa)))) (aa aaa) (aa aaaaaa)))
+((aa (aa (aaaaaa (aa aaa)) (aa (aa aaa) (aaaaaa (aa aaaaaa)) (aa (aa (aaaa (aa aaaaaa)) (aaaa (aa aaa)) (aa (aaa (aa aaa) (aa aaa) (aa aaa)) (aaaaaa (aaaaaa (aaaaaa aaaaa)) (aa (aa (aa aaa) (aaaaaa (aa aaaaaa))) (aa aaa) (aa (aa (a aaa) (aa (aa aaa))) (aa (aa aaa) (aaaa (aa aaaaaa))))))))))) (aa aaa) (aa (aaaaaa (aa aaaaaa)) (aa (aa aaa) (aaaaaaa (aa (aa (aaaaaa (aaaaaa aaaaa)) (aa (aa aaa))) (aa aaa)) (aa aaa) (aa (aaaaaa (aaaaaa aaaaa)) (aa (aaaa (aa aaaaaa)) (aaaa (aa aaaaaa)) (aaaa (aa aaa)) (aa (aa aaaaaa))))))) (aa aaa)))
+((aa (aa (aaaaaa (aaaaaa aaaaa)) (aa (aaaaaa (a aaa) (aaa (aa (aaa (aa (aa aaaaaa) (aa aaa) (aa aaaaaa)) (aaa aaa)) (aa (aa aaaaaa))) (aa aaa))) (aa (aa aaa) (aa (aaaa (aa aaaaaa)) (aa (aa aaaaaa) (aaaaaa (aa (aa aaa) (aaa (a aaa))) (aaaa (aa aaaaaa)) (aa (aa aaaaaa)))))))) (aa aaa) (aa (aaaaaa (aa aaa)) (aa (aa aaa) (aaaaaa (aaaaaa (aaaaaa aaaaa)) (aa (aa (aa (aaaa (aa aaaaaa)) (aa (aa aaaaaaaaaaaa))) (aa aaa) (aa (aaaa (aa aaaaaa)) (aa (aa aaaaaa) (aaaaaa (aa (aa aaaaaa)) (aa (aaaaaa (aaaaaa aaaa)) (aa (aa (aaaaaa (aaaaaa aaaaa)) (aa (aaaaaa (aa aaaaaa)) (aa (aa aaaaaa)))) (aaa aaa))) (aaaa (aa aaaaaa)) (aa (aa aaaaaa))))) (aa aaa) (aa (aa aaaaaa) (aaaaaa (aa (aa aaa)) (aa (aa aaaaaaaaa) (aa aaa) (aa aaaaaaaaa)))) (aa aaa) (aa (aa aaaaaa) (aaaaaa (aaa (aa (aa aaaaaa) (aa aaaaaa) (aa aaaaaa)) (aa aaa)) (aa (aaaaaa (aaaaaa aaaa)) (aa (aa (aaaaaa (aaaaaa aaaaa)) (aa (aa (aa aaaaaa) (aaaaaa (aaaaaa aaaaaaa))) (aa aaa) (aa (aa aaaaaa) (aaaaaa (aaaaaa aaaaaaa))) (aa aaa) (aa (aa aaaaaa) (aaaaaaaa (aa aaaaaa))))) (aaa aaa))) (aaaa (aa aaaaaa)) (aa (aa aaaaaa)))) (aa aaa) (aa (aaaa (aa aaaaaa)) (aa (aa aaaaaa) (aaaaaa (aa aaaaaa) (aa aaaaaa)))) (aa aaa) (aa (aa aaaaaa) (aaaaaa (aa aaaaaa) (aa aaaaaa))) (aa aaa) (aa (aa aaaaaa) (aaaaaa (aa aaaaaa) (aa aaaaaa)))) (aa aaa) (aa (aaa aaa) (aa (aa aaa) (aaaaaa (aa aaaaaa)))))))) (aa aaa)))
+(())
+((aa (aaaaaa (aaaaaa (aaaaaa aaaaa)) (aa (aa aaa) (aa aaa) (aaaaaa (aa aaaaaaaaaaaa)))) (aa aaa) (aaaaaa (aa aaaaaa)) (aa (aaaa (aa aaa)) (aa (aaa (aa aaaaaa) (aa aaa)) (aaaaaa (aa aaaaaaaaaaaaaaaaaa)))) (aa aaa)))
+((aa (aaaa (aa aaaaaa)) (aaaaaa (aaaaaa (aa (aaaaaa (aaaaaa aaaa)) (aa (aa (aaaaaa (aaaaaa aaaaa)) (aa (aaaa (aa aaaaaa)) (aa (aa aaa) (aaaaaa (aaaaaa aaaaa))))) (aaa aaa))) (aa (aa aaaaaa) (aa (aa aaa) (aaa (a aaa)))) (aa (aa aaaaaa))) (aa aaa) (aa (aa (aa aaaaaa) (aa aaaaaa)) (aa aaa) (aa (aa aaaaaa) (aa aaaaaa)) (aa aaa) (aa (aa aaaaaa) (aa aaaaaa)))) (aa aaa) (aaaaaaa (aa (aa (aa aaa) (aa (aa aaa) (aaa (a aaa)))) (aa (aa aaaaaa))) (aa aaa)) (aa aaa) (aaa (aa aaa)) (aa (aaaaaa (aa aaaaaa)) (aaaa (aa aaa)) (aa (aa aaaaaa) (aaaaaa (aa aaaaaa)))) (aa aaa)))
+((aaaaa (aa (aa (aaaaaa (aaaaaa aaaaa)) (aa (aa aaa) (aa (aa aaa) (aaaaaa (aa aaa))))) (aa aaa)) (aa aaa) (aa (aa (aaaaaa (aa (aaaaa (aa aaaaaaaaa)) (aaa (aaaa (aa aaaaaa)) (aaa aaa)) (aa (aa (aa aaaaaa)) (aa aaa) (aa (aa aaaaaa)))) (aa (aa aaa)) (aaa (aaaa (aa aaaaaa)) (aaa aaa)) (aa (aa aaaaaa))) (aa (aa aaa) (aa (aa aaa) (aaaaaaaaa (aa (aa aaaaaa)) (aa (aa aaaaaa)))))) (aa aaa)) (aa aaa)))
+(())
+((aaa (aaa aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa) (aa aaa) (aa aaa)))
+((aaa (aaa (aa (aa aaa) (aa (aa (aa aaaaaa)) (aa (aa (aa aaa) (aaa (a aaa))) (aa (aa aaa)))) (aa aaa) (aa (aa (aa aaaaaa)) (aa (aa aaa) (aaa (a aaa))) (aa (aa aaa))) (aa aaa)) (aa aaa) (aa (aaaaaa (aaaaaa aaaaa)) (aa (aaaa (aa aaaaaa)) (aa (aa aaa) (aaaaaa (aa (aa aaa) (aaa (a aaa))) (aa (aa aaa))))))) (aa aaa) (aa (aaaaaa (aa aaaaaa)) (aa (aaaa (aa aaa)) (aa (aa aaa) (aaaaaa (aa aaaaaa)) (aa (aaaaaa (aaaaaa aaaaa)) (aa (aa aaa)))))) (aa aaa) (aa (aaaaaa (aaaaaa aaaaa)) (aa (aa aaa) (aaaaaa (aa (aaaaaa (aaaaaa aaaaa)) (aa (aaa (aa aaa) (aa aaa) (aa aaaaaa)))) (aa aaa)))) (aa aaa)))
+((aaa (aaa (aa (aaaa (aa aaa)) (aaaaaa (aaa (aa (aa aaaaaa)) (aaa aaa)) (aa (aaaaa (aa aaaaaa)) (aa (aa aaaaaa)))) (aa aaa) (aa (aaaa (aa aaa)) (aa (aa aaa) (aaaaaa (aa (aaaaaa (aaaaaa aaaa)) (aa (aa (aaaaaa (aa (aaaaaa (aaaaaa aaaa)) (aa (aa (aaaaaa (aaaaaa aaaaa)) (aa (aaaa (aa aaaaaa)) (aa (aa aaaaaa)))) (aaa aaa))) (aa (aa aaaaaa))) (aa (aa aaaaaa) (aaaaaa (aaaaaa aaaaa)))) (aaa aaa))) (aa (aa aaaaaa)))))) (aa aaa) (aa (aaaaaa (aa aaaaaa)) (aa (aaaa (aa aaa)) (aa (aa aaa) (aa (aa aaaaaa))))) (aa aaa) (aa (aa (aaaa (aa aaaaaa)) (aaaaaa (aa aaaaaa)) (aa (aaaa (aa aaa)) (aa (aa aaa) (aa (aaaa (aa aaaaaa)) (aa (aa aaaaaa)))))) (aa aaa))) (aa aaa) (aa (aaaaaa (aa aaaaaa)) (aa (aaaa (aa aaa)) (aa (aa aaaaaa) (aa aaa) (aaaaaa (aa (aaaaaa (aaaaa (aa aaaaaaaaa)) (aa (aa aaaaaa))) (aa (aa aaaaaa))) (aa aaa) (aa (aaaaaa (aaaaaa aaaaa)) (aa (aa (aa aaaaaa) (aaaaaa (aa aaaaaa))) (aa aaa) (aa (aa aaaaaa) (aaaaaa (aaaaaa (aa (aaaaaa (aaaaaa aaaaa)) (aa (aa aaaaaa))) (aaa aaa)) (aa (aa aaaaaa)))))) (aa aaa) (aa (aaaa (aa aaa)) (aaaaaa (aaaa (aa aaaaaa)) (aa (aaaaaa (aa aaaaaa)) (aa (aa aaa) (aa aaa)))) (aa aaa) (aaaaaa (aaaaaa aaaaa)) (aa (aa (aaaa (aa aaa)) (aa (aa aaa) (aaaaaa (aaaaaa (aa aaaaaa)) (aa (aaaa (aa aaaaaa)) (aa (aa aaa) (aa (aa aaaaaa) (aa aaa))))))) (aa aaa) (aa (aaaa (aa aaa)) (aaaa (aa aaa)) (aa (aa aaa) (aa (aa aaaaaa) (aaaaaa (aa aaa))))))))))) (aa aaa)))
+`
