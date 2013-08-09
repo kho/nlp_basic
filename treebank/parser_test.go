@@ -1,7 +1,6 @@
 package treebank
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"strings"
@@ -100,6 +99,7 @@ var parseCases = []parserCase{
 	{"((a b))", Node{"a", []Node{{"b", nil}}}, false},
 	{"((a (b c)))", Node{"a", []Node{{"b", []Node{{"c", nil}}}}}, false},
 	{"((a(b c)(d (e f))))", Node{"a", []Node{{"b", []Node{{"c", nil}}}, {"d", []Node{{"e", []Node{{"f", nil}}}}}}}, false},
+	{"(())", Node{}, true},
 	{"", Node{}, true},
 	{"(", Node{}, true},
 	{")", Node{}, true},
@@ -126,21 +126,16 @@ func TestParserSingle(t *testing.T) {
 }
 
 func TestParseMultiple(t *testing.T) {
-	buf := bytes.NewBuffer(nil)
+	var goodTrees []string
 	for _, c := range parseCases {
 		if c.err {
 			continue
 		}
-		n, e := buf.WriteString(c.input)
-		if n != len(c.input) || e != nil {
-			t.Fatal("error in creating test case!")
-		}
-		n, e = buf.WriteString("\n")
-		if n != 1 || e != nil {
-			t.Fatal("error in creating test case!")
-		}
+		goodTrees = append(goodTrees, c.input)
 	}
-	parser := NewParser(buf)
+	inputString := strings.Join(goodTrees, " ")
+	input := strings.NewReader(inputString)
+	parser := NewParser(input)
 	for _, c := range parseCases {
 		if c.err {
 			continue
@@ -152,6 +147,22 @@ func TestParseMultiple(t *testing.T) {
 		if err == nil && !equiv(tree, c.tree) {
 			t.Errorf("expected %v; got %v at input %q\n", c.tree, tree, c.input)
 		}
+	}
+
+	input.Seek(0, 0)
+	trees, err := ParseAll(input)
+	if err != nil {
+		t.Errorf("expected nil; got %q at input %q\n", err, formatInput(inputString, input))
+	}
+	i := 0
+	for _, c := range parseCases {
+		if c.err {
+			continue
+		}
+		if !equiv(*trees[i], c.tree) {
+			t.Errorf("expected %v; got %v as the %d-th tree\n", c.tree, trees[i], i)
+		}
+		i++
 	}
 }
 
@@ -195,7 +206,6 @@ func BenchmarkParse(b *testing.B) {
 		if err != io.EOF {
 			b.Errorf("unexpected error %q", err)
 		}
-		//b.Log("Max token cap", cap(parser.token))
 	}
 }
 

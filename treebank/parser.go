@@ -60,6 +60,26 @@ func (parser *Parser) Next() (node Node, err error) {
 	return
 }
 
+// ParseAll extracts all the trees from the remaining input until the
+// end of input or first parse error. A nil pointer is stored
+// everytime a NoParse is encountered.
+func ParseAll(input io.ByteScanner) (trees []*Node, err error) {
+	p := NewParser(input)
+	node, err := p.Next()
+	for err == nil || err == NoParse {
+		if err == NoParse {
+			trees = append(trees, nil)
+		} else {
+			trees = append(trees, &Node{node.Label, node.Children})
+		}
+		node, err = p.Next()
+	}
+	if err == io.EOF {
+		err = nil
+	}
+	return
+}
+
 // kind is the kind of token found by the parser. It only takes the
 // following 3 constant values.
 type kind int
