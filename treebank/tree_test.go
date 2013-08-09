@@ -10,9 +10,7 @@ var copyCases = []Node{
 	{"a", []Node{{"b", []Node{{"c", nil}}}}},
 }
 
-type modifier func(*Node)
-
-var modifyFuncs = []modifier{clearLabels, addChild}
+var modifyFuncs = []func(*Node){clearLabels, addChild}
 
 func TestCopy(t *testing.T) {
 	for _, tree := range copyCases {
