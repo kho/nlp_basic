@@ -116,8 +116,8 @@ func (p *Parser) nextToken() (token []byte, kind kind, err error) {
 		return
 	}
 	// Find out token's type
-	p.token = p.token[:0]
-	p.token = append(p.token, c)
+	p.token = p.token[:1]
+	p.token[0] = c
 	if c == '(' {
 		kind = kOpen
 	} else if c == ')' {
