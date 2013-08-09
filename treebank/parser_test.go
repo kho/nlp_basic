@@ -177,6 +177,17 @@ func TestParseNoParse(t *testing.T) {
 			t.Errorf("expected NoParse; got %q at input %q\n", err, formatInput(c, input))
 		}
 	}
+
+	input := strings.NewReader(strings.Join(noParseCases, " "))
+	trees, err := ParseAll(input)
+	if err != nil {
+		t.Errorf("expected nil; got %q\n", err)
+	}
+	for i, tree := range trees {
+		if tree != nil {
+			t.Errorf("expected nil; got %v for input %d\n", *tree, i)
+		}
+	}
 }
 
 var mixedCases = []string{"(()) ((a a))", "((a a)) (()) ((a a))"}
