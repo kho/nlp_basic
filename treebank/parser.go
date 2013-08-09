@@ -40,7 +40,7 @@ func (parser *Parser) Next() (node Node, err error) {
 	if err != nil {
 		return
 	}
-	if kind != OPEN {
+	if kind != kOpen {
 		err = NoOpenParen
 		return
 	}
@@ -53,7 +53,7 @@ func (parser *Parser) Next() (node Node, err error) {
 
 	// )
 	_, kind, err2 := parser.nextToken()
-	if err2 != nil || kind != CLOSE {
+	if err2 != nil || kind != kClose {
 		err = NoCloseParen
 	}
 
@@ -85,9 +85,9 @@ func ParseAll(input io.ByteScanner) (trees []*Node, err error) {
 type kind int
 
 const (
-	OPEN  kind = 0
-	CLOSE      = iota
-	WORD       = iota
+	kOpen  kind = 0
+	kClose      = iota
+	kWord       = iota
 )
 
 // peekToken peeks at the next token. See nextToken() for its return values.
@@ -119,9 +119,9 @@ func (p *Parser) nextToken() (token []byte, kind kind, err error) {
 	p.token = p.token[:0]
 	p.token = append(p.token, c)
 	if c == '(' {
-		kind = OPEN
+		kind = kOpen
 	} else if c == ')' {
-		kind = CLOSE
+		kind = kClose
 	} else {
 		// Continue until a white-space or parentheses
 		c, err = p.input.ReadByte()
@@ -135,7 +135,7 @@ func (p *Parser) nextToken() (token []byte, kind kind, err error) {
 			// We have successfully read something; postpone this error.
 			err = nil
 		}
-		kind = WORD
+		kind = kWord
 	}
 	token = p.token
 	return
@@ -147,7 +147,7 @@ func (p *Parser) nextToken() (token []byte, kind kind, err error) {
 func (p *Parser) parseNode() (node Node, err error) {
 	// (
 	_, kind, err := p.nextToken()
-	if err != nil || kind != OPEN {
+	if err != nil || kind != kOpen {
 		err = NoOpenParen
 		return
 	}
@@ -155,14 +155,14 @@ func (p *Parser) parseNode() (node Node, err error) {
 	if err != nil {
 		return
 	}
-	if kind == CLOSE {
+	if kind == kClose {
 		p.nextToken()
 		err = NoParse
 		return
 	}
 	// Category
 	token, kind, err := p.nextToken()
-	if err != nil || kind != WORD {
+	if err != nil || kind != kWord {
 		err = NoCategory
 		return
 	}
@@ -170,16 +170,16 @@ func (p *Parser) parseNode() (node Node, err error) {
 
 	// ( or word
 	token, kind, err = p.peekToken()
-	if err != nil || kind == CLOSE {
+	if err != nil || kind == kClose {
 		err = NoWordOrOpenParen
 		return
 	}
 
 	switch kind {
-	case WORD:
+	case kWord:
 		node.Children = append(node.Children, Node{string(token), nil})
 		p.nextToken() // consume the peeked token
-	case OPEN:
+	case kOpen:
 		node.Children, err = p.parseChildren()
 		if err != nil {
 			return
@@ -190,7 +190,7 @@ func (p *Parser) parseNode() (node Node, err error) {
 	}
 
 	_, kind, err = p.nextToken()
-	if err != nil || kind != CLOSE {
+	if err != nil || kind != kClose {
 		err = NoCloseParen
 		return
 	}
@@ -210,7 +210,7 @@ func (p *Parser) parseChildren() (children []Node, err error) {
 	children = append(children, child)
 
 	_, kind, err := p.peekToken()
-	for err == nil && kind == OPEN {
+	for err == nil && kind == kOpen {
 		child, err = p.parseNode()
 		if err != nil {
 			return

@@ -221,14 +221,14 @@ func BenchmarkParse(b *testing.B) {
 }
 
 func checkKind(s string, k kind, t *testing.T) {
-	if s == "(" && k != OPEN {
-		t.Errorf("expected kind %v; got %v\n", OPEN, k)
+	if s == "(" && k != kOpen {
+		t.Errorf("expected kind %v; got %v\n", kOpen, k)
 	}
-	if s == ")" && k != CLOSE {
-		t.Errorf("expected kind %v; got %v\n", CLOSE, k)
+	if s == ")" && k != kClose {
+		t.Errorf("expected kind %v; got %v\n", kClose, k)
 	}
-	if s != "(" && s != ")" && k != WORD {
-		t.Errorf("expected kind %v; got %v\n", WORD, k)
+	if s != "(" && s != ")" && k != kWord {
+		t.Errorf("expected kind %v; got %v\n", kWord, k)
 	}
 }
 
