@@ -29,6 +29,14 @@ func TestCopy(t *testing.T) {
 	}
 }
 
+func BenchmarkCopy(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		for j := range copyCases {
+			_ = Copy(copyCases[j])
+		}
+	}
+}
+
 func clearLabels(node *Node) {
 	node.Label = ""
 	for i := range node.Children {
