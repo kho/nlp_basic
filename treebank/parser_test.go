@@ -206,6 +206,31 @@ func TestParseMixed(t *testing.T) {
 	}
 }
 
+var fromStringCases = []struct {
+	input string
+	error bool
+}{
+	{"((A B))", false},
+	{"((A (B C) (D E)))    ", false},
+	{"((A (B C) (D E))) ((A B))", true},
+	{"(())", true},
+}
+
+func TestFromString(t *testing.T) {
+	for _, c := range fromStringCases {
+		func() {
+			defer func() {
+				err := recover()
+				if (err == nil) != (c.error == false) {
+					t.Errorf("expected error = %v; got %q\n",
+						c.error, err)
+				}
+			}()
+			_ = FromString(c.input)
+		}()
+	}
+}
+
 func BenchmarkParse(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		input := strings.NewReader(benchmarkCases)

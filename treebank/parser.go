@@ -13,6 +13,7 @@ var (
 	NoOpenParen       = errors.New("expect (")
 	NoCategory        = errors.New("expect category")
 	NoWordOrOpenParen = errors.New("expect word or (")
+	ResidualInput     = errors.New("residual input")
 )
 
 // Parser parses treebank trees from a io.ByteScanner.
@@ -65,6 +66,21 @@ func (parser *Parser) Next() (node Node, err error) {
 // the rest of the string.
 func ParseString(input string) (Node, error) {
 	return NewParser(strings.NewReader(input)).Next()
+}
+
+// FromString converts a single string to extract one tree. Panics if
+// there is any error.
+func FromString(input string) Node {
+	p := NewParser(strings.NewReader(input))
+	tree, err := p.Next()
+	if err != nil {
+		panic(err)
+	}
+	_, err = p.Next()
+	if err != io.EOF {
+		panic(ResidualInput)
+	}
+	return tree
 }
 
 // ParseAll extracts all the trees from the remaining input until the
