@@ -30,6 +30,11 @@ func Copy(tree Node) Node {
 	return ret
 }
 
+// IsPreTerminal tests if the node is a pre-terminal
+func IsPreTerminal(node Node) bool {
+	return len(node.Children) == 1 && len(node.Children[0].Children) == 0
+}
+
 // StripAnnotation strips off rich treebank annotation (e.g. NP-1,
 // NP-SUBJ, etc) and returns the tree itself.
 func (node *Node) StripAnnotation() *Node {

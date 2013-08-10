@@ -60,8 +60,8 @@ var stripAnnotationCases = []struct{ input, output string }{
 
 func TestStripAnnotation(t *testing.T) {
 	for _, c := range stripAnnotationCases {
-		tree0, _ := ParseString(c.input)
-		tree1, _ := ParseString(c.output)
+		tree0 := FromString(c.input)
+		tree1 := FromString(c.output)
 		(&tree0).StripAnnotation()
 		if !equiv(tree0, tree1) {
 			t.Errorf("expected %q; got %q\n")
@@ -69,21 +69,42 @@ func TestStripAnnotation(t *testing.T) {
 	}
 }
 
-var removeNoneCases = []struct{ input, output string }{
-	{"((S (NP this) (VP (V is) (NP (DT a) (NN test)))))",
-		"((S (NP this) (VP (V is) (NP (DT a) (NN test)))))"},
-	{"((S (NP (-NONE- (NP *PRO*)))))", "((-NONE-))"},
-	{"((S (NP (-NONE- (NP *PRO*)) (-NONE- *T*)) (VP (-NONE- *T*) (V ...))))",
-		"((S (VP (V ...))))"},
+var removeNoneCases = []struct{ input, output Node }{
+	{FromString("((S (NP this) (VP (V is) (NP (DT a) (NN test)))))"),
+		FromString("((S (NP this) (VP (V is) (NP (DT a) (NN test)))))")},
+	{FromString("((S (NP (-NONE- (NP *PRO*)))))"), Node{"-NONE-", nil}},
+	{FromString("((S (NP (-NONE- (NP *PRO*)) (-NONE- *T*)) (VP (-NONE- *T*) (V v))))"),
+		FromString("((S (VP (V v))))")},
 }
 
 func TestRemoveNone(t *testing.T) {
 	for _, c := range removeNoneCases {
-		tree0, _ := ParseString(c.input)
-		tree1, _ := ParseString(c.output)
+		tree0 := c.input
+		tree1 := c.output
 		(&tree0).RemoveNone()
 		if !equiv(tree0, tree1) {
 			t.Errorf("expected %q; got %q\n")
+		}
+	}
+}
+
+var isPreTerminalCases = []struct {
+	input  Node
+	output bool
+}{
+	{Node{"A", nil}, false},
+	{FromString("((A B))"), true},
+	{FromString("((A (B (C D))))"), false},
+	{FromString("((A (B C) (D E)))"), false},
+}
+
+func TestIsPreTerminal(t *testing.T) {
+	for _, c := range isPreTerminalCases {
+		a := IsPreTerminal(c.input)
+		b := c.output
+		if a != b {
+			t.Errorf("expected %v; got %v for PreTerminal(%q)\n",
+				b, a, c.input)
 		}
 	}
 }
