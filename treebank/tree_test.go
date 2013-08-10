@@ -48,3 +48,42 @@ func addChild(node *Node) {
 	}
 	node.Children = append(node.Children, Node{"x", nil})
 }
+
+var stripAnnotationCases = []struct{ input, output string }{
+	{"((S (NP this) (VP (V is) (NP (DT a) (NN test)))))",
+		"((S (NP this) (VP (V is) (NP (DT a) (NN test)))))"},
+	{"((S (NP-1 this-this) (VP-2 (V-3-4 is) (NP-NONE (DT=2 a) (NN test)))))",
+		"((S (NP this-this) (VP (V is) (NP (DT a) (NN test)))))"},
+	{"((S (NP this) (-NONE- (NP-1 *PRO*-2)) (VP (V is) (NP (DT a) (NN test)))))",
+		"((S (NP this) (-NONE- (NP *PRO*)) (VP (V is) (NP (DT a) (NN test)))))"},
+}
+
+func TestStripAnnotation(t *testing.T) {
+	for _, c := range stripAnnotationCases {
+		tree0, _ := ParseString(c.input)
+		tree1, _ := ParseString(c.output)
+		(&tree0).StripAnnotation()
+		if !equiv(tree0, tree1) {
+			t.Errorf("expected %q; got %q\n")
+		}
+	}
+}
+
+var removeNoneCases = []struct{ input, output string }{
+	{"((S (NP this) (VP (V is) (NP (DT a) (NN test)))))",
+		"((S (NP this) (VP (V is) (NP (DT a) (NN test)))))"},
+	{"((S (NP (-NONE- (NP *PRO*)))))", "((-NONE-))"},
+	{"((S (NP (-NONE- (NP *PRO*)) (-NONE- *T*)) (VP (-NONE- *T*) (V ...))))",
+		"((S (VP (V ...))))"},
+}
+
+func TestRemoveNone(t *testing.T) {
+	for _, c := range removeNoneCases {
+		tree0, _ := ParseString(c.input)
+		tree1, _ := ParseString(c.output)
+		(&tree0).RemoveNone()
+		if !equiv(tree0, tree1) {
+			t.Errorf("expected %q; got %q\n")
+		}
+	}
+}
