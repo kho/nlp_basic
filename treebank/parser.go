@@ -3,6 +3,7 @@ package treebank
 import (
 	"errors"
 	"io"
+	"strings"
 )
 
 var (
@@ -58,6 +59,12 @@ func (parser *Parser) Next() (node Node, err error) {
 	}
 
 	return
+}
+
+// ParseString parses a single string to extract one tree and discards
+// the rest of the string.
+func ParseString(input string) (Node, error) {
+	return NewParser(strings.NewReader(input)).Next()
 }
 
 // ParseAll extracts all the trees from the remaining input until the
