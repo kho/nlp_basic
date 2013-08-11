@@ -256,6 +256,31 @@ func TestTopologyTopsort(t *testing.T) {
 	}
 }
 
+func TestTopologyDisconnect(t *testing.T) {
+	disconnectCases := []struct {
+		input, output *Topology
+		remove        []bool
+	}{
+		{NewEmptyTopology(), NewEmptyTopology(), nil},
+		{NewRootedTopology(), NewRootedTopology(), []bool{false}},
+		{NewRootedTopology(), fromParents(NoNodeId, []NodeId{NoNodeId}), []bool{true}},
+		{fromParents(0, []NodeId{NoNodeId, 0, 1, 0, 3, 4}),
+			fromParents(NoNodeId, []NodeId{NoNodeId, 0, 1, 0, 3, 4}),
+			[]bool{true, false, false, false, false, false}},
+		{fromParents(0, []NodeId{NoNodeId, 0, 1, 0, 3, 4}),
+			fromParents(0, []NodeId{NoNodeId, NoNodeId, NoNodeId, NoNodeId, NoNodeId, NoNodeId}),
+			[]bool{false, true, true, true, true, true}},
+	}
+
+	for _, c := range disconnectCases {
+		c.input.Disconnect(c.remove)
+		if !c.input.Equal(c.output) {
+			t.Errorf("expected %q; got %q after disconnect with %v\n",
+				*c.output, *c.input, c.remove)
+		}
+	}
+}
+
 func topologySanityCheck(tree *Topology, t *testing.T) {
 	if tree.NumNodes() == 0 {
 		if root := tree.Root(); root != NoNodeId {
