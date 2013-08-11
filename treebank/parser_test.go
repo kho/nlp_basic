@@ -91,20 +91,20 @@ func TestParserPeekPeekNext(t *testing.T) {
 
 type parserCase struct {
 	input string
-	tree  Node
+	tree  *LabelTree
 	err   bool
 }
 
 var parseCases = []parserCase{
-	{"((a b))", Node{"a", []Node{{"b", nil}}}, false},
-	{"((a (b c)))", Node{"a", []Node{{"b", []Node{{"c", nil}}}}}, false},
-	{"((a(b c)(d (e f))))", Node{"a", []Node{{"b", []Node{{"c", nil}}}, {"d", []Node{{"e", []Node{{"f", nil}}}}}}}, false},
-	{"(())", Node{}, true},
-	{"", Node{}, true},
-	{"(", Node{}, true},
-	{")", Node{}, true},
-	{"((a))", Node{}, true},
-	{"((a b)", Node{}, true},
+	{"((a b))", &LabelTree{fromParents(0, []NodeId{NoNodeId, 0}), []string{"a", "b"}}, false},
+	{"((a (b c)))", &LabelTree{fromParents(0, []NodeId{NoNodeId, 0, 1}), []string{"a", "b", "c"}}, false},
+	{"((a(b c)(d (e f))))", &LabelTree{fromParents(0, []NodeId{NoNodeId, 0, 1, 0, 3, 4}), []string{"a", "b", "c", "d", "e", "f"}}, false},
+	{"(())", &LabelTree{NewEmptyTopology(), nil}, false},
+	{"", nil, true},
+	{"(", nil, true},
+	{")", nil, true},
+	{"((a))", nil, true},
+	{"((a b)", nil, true},
 }
 
 func TestParserSingle(t *testing.T) {
@@ -159,7 +159,7 @@ func TestParseMultiple(t *testing.T) {
 		if c.err {
 			continue
 		}
-		if !equiv(*trees[i], c.tree) {
+		if !equiv(trees[i], c.tree) {
 			t.Errorf("expected %v; got %v as the %d-th tree\n", c.tree, trees[i], i)
 		}
 		i++
@@ -172,10 +172,14 @@ func TestParseNoParse(t *testing.T) {
 	for _, c := range noParseCases {
 		input := strings.NewReader(c)
 		parser := NewParser(input)
-		_, err := parser.Next()
-		if err != NoParse {
-			t.Errorf("expected NoParse; got %q at input %q\n", err, formatInput(c, input))
+		tree, err := parser.Next()
+		if err != nil {
+			t.Errorf("expected nil; got %q at input %q\n", err, formatInput(c, input))
 		}
+		if root := tree.Topology.Root(); root != NoNodeId {
+			t.Errorf("expected NoNodeId; got %d\n", root)
+		}
+		labelTreeSanityCheck(tree, t)
 	}
 
 	input := strings.NewReader(strings.Join(noParseCases, " "))
@@ -183,10 +187,11 @@ func TestParseNoParse(t *testing.T) {
 	if err != nil {
 		t.Errorf("expected nil; got %q\n", err)
 	}
-	for i, tree := range trees {
-		if tree != nil {
-			t.Errorf("expected nil; got %v for input %d\n", *tree, i)
+	for _, tree := range trees {
+		if root := tree.Topology.Root(); root != NoNodeId {
+			t.Errorf("expected NoNodeId; got %d\n", root)
 		}
+		labelTreeSanityCheck(tree, t)
 	}
 }
 
@@ -197,7 +202,7 @@ func TestParseMixed(t *testing.T) {
 		input := strings.NewReader(c)
 		parser := NewParser(input)
 		_, err := parser.Next()
-		for err == nil || err == NoParse {
+		for err == nil {
 			_, err = parser.Next()
 		}
 		if err != io.EOF {
@@ -213,7 +218,7 @@ var fromStringCases = []struct {
 	{"((A B))", false},
 	{"((A (B C) (D E)))    ", false},
 	{"((A (B C) (D E))) ((A B))", true},
-	{"(())", true},
+	{"(())", false},
 }
 
 func TestFromString(t *testing.T) {
@@ -236,7 +241,7 @@ func BenchmarkParse(b *testing.B) {
 		input := strings.NewReader(benchmarkCases)
 		parser := NewParser(input)
 		_, err := parser.Next()
-		for err == nil || err == NoParse {
+		for err == nil {
 			_, err = parser.Next()
 		}
 		if err != io.EOF {
@@ -267,15 +272,20 @@ func formatInput(s string, r unreader) string {
 	return fmt.Sprintf("%s.%s", s[:len(s)-unread], s[len(s)-unread:])
 }
 
-func equiv(a Node, b Node) bool {
-	if a.Label != b.Label {
+func labelTreeSanityCheck(tree *LabelTree, t *testing.T) {
+	topologySanityCheck(tree.Topology, t)
+	if size1, size2 := tree.Topology.NumNodes(), len(tree.Label); size1 != size2 {
+		t.Errorf("num nodes and num labels do not match: %d vs %d\n",
+			size1, size2)
+	}
+}
+
+func equiv(a *LabelTree, b *LabelTree) bool {
+	if !a.Topology.Equal(b.Topology) {
 		return false
 	}
-	if len(a.Children) != len(b.Children) {
-		return false
-	}
-	for i := 0; i < len(a.Children); i++ {
-		if !equiv(a.Children[i], b.Children[i]) {
+	for i := 0; i < len(a.Label); i++ {
+		if a.Label[i] != b.Label[i] {
 			return false
 		}
 	}

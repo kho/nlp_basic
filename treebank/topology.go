@@ -88,6 +88,17 @@ func (t *Topology) Children(n NodeId) []NodeId {
 	return t.children[n]
 }
 
+// Leaf tests whether the given node is a leaf.
+func (t *Topology) Leaf(n NodeId) bool {
+	return len(t.children[n]) == 0
+}
+
+// PreTerminal tests whether the given node is a pre-terminal,
+// i.e. the POS tag node dominating the leaf.
+func (t *Topology) PreTerminal(n NodeId) bool {
+	return len(t.children[n]) == 1 && t.Leaf(t.children[n][0])
+}
+
 // AddNode adds a node without a parent (i.e. a dangling node outside
 // the tree) to the topology and returns the node id of the new node.
 func (t *Topology) AddNode() NodeId {
@@ -156,16 +167,16 @@ func union(parent NodeId, child NodeId, p []NodeId) {
 }
 
 // Topsort toplogically sorts the topology in top-down order and
-// returns the new size of the tree and the mapping from old node ids
-// to new node ids as a slice. Nodes not in the tree from the root are
-// removed and their mapping is set to NoNodeId in the return value.
-func (t *Topology) Topsort() (int, []NodeId) {
+// returns the mapping from old node ids to new node ids as a
+// slice. Nodes not in the tree from the root are removed and their
+// mapping is set to NoNodeId in the return value.
+func (t *Topology) Topsort() []NodeId {
 	traverse := make([]NodeId, 0, t.NumNodes())
 	if t.Root() != NoNodeId {
 		dfsTraverse(t, t.Root(), &traverse)
 	}
 	oldToNew := remap(t, traverse)
-	return t.NumNodes(), oldToNew
+	return oldToNew
 }
 
 func dfsTraverse(t *Topology, n NodeId, ns *[]NodeId) {
@@ -207,4 +218,33 @@ func remap(t *Topology, newToOld []NodeId) []NodeId {
 	t.parent = newParent
 	t.children = newChildren
 	return oldToNew
+}
+
+// Disconnect removes the nodes marked as true in remove from their
+// parents. Returns the number of nodes that is disconnected.
+func (t *Topology) Disconnect(remove []bool) int {
+	numDisconnected := 0
+	for i, r := range remove {
+		if !r {
+			continue
+		}
+		node := NodeId(i)
+		if node == t.root {
+			t.root = NoNodeId
+		} else {
+			parent := t.parent[node]
+			if parent == NoNodeId {
+				continue
+			}
+			t.parent[node] = NoNodeId
+			j := 0
+			for j < len(t.children[parent]) && t.children[parent][j] != node {
+				j++
+			}
+			copy(t.children[parent][j:], t.children[parent][j+1:])
+			t.children[parent] = t.children[parent][:len(t.children[parent])-1]
+		}
+		numDisconnected++
+	}
+	return numDisconnected
 }

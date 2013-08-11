@@ -4,79 +4,78 @@ import (
 	"bytes"
 )
 
-// Node is a parse tree node. Its parts are references so itself is
-// quite small and should be passed by value unless being modified.
-type Node struct {
-	Label    string
-	Children []Node
+// LabelTree is a parse tree with its labels as strings
+type LabelTree struct {
+	Topology *Topology
+	Label    []string
 }
 
-func (node Node) String() string {
+func (tree *LabelTree) NumNodes() int {
+	return len(tree.Label)
+}
+
+// String writes out the tree in standard Treebank format
+func (tree *LabelTree) String() string {
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 	buf.WriteByte('(')
-	dfsString(node, buf)
+	if tree.Topology.Root() == NoNodeId {
+		buf.WriteString("()")
+	} else {
+		dfsString(tree, tree.Topology.Root(), buf)
+	}
 	buf.WriteByte(')')
 	return buf.String()
 }
 
-// Copy deep-copies a Node.
-func Copy(tree Node) Node {
-	var ret Node
-	ret.Label = tree.Label
-	ret.Children = make([]Node, len(tree.Children))
-	for i, child := range tree.Children {
-		ret.Children[i] = Copy(child)
+// dfsString traverses a non-empty tree starting at node and writes
+// the string representation to buf.
+func dfsString(tree *LabelTree, node NodeId, buf *bytes.Buffer) {
+	if tree.Topology.Leaf(node) {
+		buf.WriteString(tree.Label[node])
+	} else {
+		buf.WriteByte('(')
+		buf.WriteString(tree.Label[node])
+		for _, child := range tree.Topology.Children(node) {
+			buf.WriteByte(' ')
+			dfsString(tree, child, buf)
+		}
+		buf.WriteByte(')')
 	}
-	return ret
 }
 
-// IsPreTerminal tests if the node is a pre-terminal
-func IsPreTerminal(node Node) bool {
-	return len(node.Children) == 1 && len(node.Children[0].Children) == 0
+// TopSort topologically sorts the tree and re-organizes the labels
+// into a top-down order.
+func (tree *LabelTree) Topsort() *LabelTree {
+	oldToNew := tree.Topology.Topsort()
+	newLabel := make([]string, tree.Topology.NumNodes())
+	for oldId, label := range tree.Label {
+		newId := oldToNew[oldId]
+		if newId != NoNodeId {
+			newLabel[newId] = label
+		}
+	}
+	tree.Label = newLabel
+	return tree
 }
 
 // StripAnnotation strips off rich treebank annotation (e.g. NP-1,
 // NP-SUBJ, etc) and returns the tree itself.
-func (node *Node) StripAnnotation() *Node {
-	stripAnnotation(node)
-	return node
-}
-
-// RemoveNone removes -NONE- and its unary ancestors.
-func (node *Node) RemoveNone() *Node {
-	removeNone(node)
-	return node
-}
-
-func dfsString(node Node, buf *bytes.Buffer) {
-	if len(node.Children) > 0 {
-		buf.WriteByte('(')
-		buf.WriteString(node.Label)
-		for i := range node.Children {
-			buf.WriteByte(' ')
-			dfsString(node.Children[i], buf)
-		}
-		buf.WriteByte(')')
-	} else {
-		buf.WriteString(node.Label)
-	}
-}
-
-func stripAnnotation(node *Node) {
-	if len(node.Children) == 0 {
-		// Only strip if starting with * (i.e. *pro*, *T*, *PRO*, etc.)
-		if len(node.Label) > 0 && node.Label[0] == '*' {
-			node.Label = stripLabelAnnotation(node.Label)
-		}
-	} else {
-		// Do not strip if this is -NONE-
-		if len(node.Label) > 0 && node.Label[0] != '-' {
-			node.Label = stripLabelAnnotation(node.Label)
-		}
-		for i := range node.Children {
-			stripAnnotation(&node.Children[i])
+func (tree *LabelTree) StripAnnotation() *LabelTree {
+	for i, label := range tree.Label {
+		node := NodeId(i)
+		if tree.Topology.Leaf(node) {
+			// Only strip if starting with * (i.e. *pro*, *T*, *PRO*, etc.)
+			if len(label) > 0 && label[0] == '*' {
+				tree.Label[i] = stripLabelAnnotation(label)
+			}
+		} else {
+			// Do not strip if this is -NONE-
+			if len(label) > 0 && label[0] != '-' {
+				tree.Label[i] = stripLabelAnnotation(label)
+			}
 		}
 	}
+	return tree
 }
 
 func stripLabelAnnotation(label string) string {
@@ -87,21 +86,32 @@ func stripLabelAnnotation(label string) string {
 	return label[:i]
 }
 
-func removeNone(node *Node) {
-	old_num_children := len(node.Children)
-	for i := range node.Children {
-		if node.Children[i].Label != "-NONE-" {
-			removeNone(&node.Children[i])
+// RemoveNone removes -NONE- and its unary ancestors.
+func (tree *LabelTree) RemoveNone() *LabelTree {
+	tree.Topsort()
+	invisible := make([]bool, tree.NumNodes())
+	// Mark in bottom-up order
+	for i := tree.NumNodes(); i > 0; i-- {
+		node := NodeId(i - 1)
+		label := tree.Label[node]
+		if label == "-NONE-" {
+			invisible[node] = true
+		} else if len(tree.Topology.Children(node)) > 0 {
+			invisible[node] = true
+			for _, child := range tree.Topology.Children(node) {
+				if !invisible[child] {
+					invisible[node] = false
+					break
+				}
+			}
+			if invisible[node] {
+				for _, child := range tree.Topology.Children(node) {
+					invisible[child] = false
+				}
+			}
 		}
 	}
-	var children []Node
-	for i := range node.Children {
-		if node.Children[i].Label != "-NONE-" {
-			children = append(children, node.Children[i])
-		}
-	}
-	node.Children = children
-	if len(children) == 0 && old_num_children > 0 {
-		node.Label = "-NONE-"
-	}
+	tree.Topology.Disconnect(invisible)
+	tree.Topsort()
+	return tree
 }

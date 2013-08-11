@@ -213,10 +213,7 @@ func TestTopologyTopsort(t *testing.T) {
 	for _, tree := range topsortCases {
 		t.Log(*tree)
 		save := tree.Copy()
-		newSize, oldToNew := tree.Topsort()
-		if size := tree.NumNodes(); newSize != size {
-			t.Errorf("expected num nodes %d; got %d\n", size, newSize)
-		}
+		oldToNew := tree.Topsort()
 		topologySanityCheck(tree, t)
 		numComponents := len(tree.Components())
 		if save.Root() != NoNodeId && numComponents != 1 {

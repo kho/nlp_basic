@@ -6,15 +6,52 @@ import (
 	"strings"
 )
 
+// Parsing errors
 var (
 	ParseError        = errors.New("something went wrong")
-	NoParse           = errors.New("no parse")
 	NoCloseParen      = errors.New("expect )")
 	NoOpenParen       = errors.New("expect (")
 	NoCategory        = errors.New("expect category")
 	NoWordOrOpenParen = errors.New("expect word or (")
 	ResidualInput     = errors.New("residual input")
 )
+
+// ParseString parses a single string to extract one tree and discards
+// the rest of the string.
+func ParseString(input string) (*LabelTree, error) {
+	return NewParser(strings.NewReader(input)).Next()
+}
+
+// FromString converts a single string to extract one tree. Panics if
+// there is any error.
+func FromString(input string) *LabelTree {
+	p := NewParser(strings.NewReader(input))
+	tree, err := p.Next()
+	if err != nil {
+		panic(err)
+	}
+	_, err = p.Next()
+	if err != io.EOF {
+		panic(ResidualInput)
+	}
+	return tree
+}
+
+// ParseAll extracts all the trees from the remaining input until the
+// end of input or first parse error. A nil pointer is stored
+// everytime a NoParse is encountered.
+func ParseAll(input io.ByteScanner) (trees []*LabelTree, err error) {
+	p := NewParser(input)
+	tree, err := p.Next()
+	for err == nil {
+		trees = append(trees, tree)
+		tree, err = p.Next()
+	}
+	if err == io.EOF {
+		err = nil
+	}
+	return
+}
 
 // Parser parses treebank trees from a io.ByteScanner.
 type Parser struct {
@@ -31,82 +68,192 @@ func NewParser(input io.ByteScanner) *Parser {
 	return &Parser{input: input, token: make([]byte, 256)}
 }
 
-// Next extracts the next parse tree from input. When succeeds,
-// it returns the node and nil error. For a special tree form (()), it
-// returns NoParse. When it encounters an error when reading the first
-// token, it returns the IO error from the scanner; otherwise it
-// returns one of the above parser errors.
-func (parser *Parser) Next() (node Node, err error) {
-	// (
-	_, kind, err := parser.nextToken()
+// Next extracts the next parse tree from input. When succeeds, it
+// returns the tree and nil error. When it encounters an error when
+// reading the first token, it returns the IO error from the scanner;
+// otherwise it returns one of the above parser errors.
+func (p *Parser) Next() (*LabelTree, error) {
+	tree := &LabelTree{NewEmptyTopology(), make([]string, 0, 16)}
+	_, err := p.parseS(tree)
 	if err != nil {
-		return
+		return nil, err
+	}
+	return tree, nil
+}
+
+// parseS is the entry point of the following recursive descent parser
+// (note the grammar is stricter than ordinary sexp because of the
+// constraints in Treebank trees):
+//
+//   S -> '(' Tree ')'
+//   Tree -> '(' { ')' | Node ')' }
+//   Node -> Label { Label | Children }
+//   Children -> '(' Node ')' { eps | Children }
+//
+// All parse* methods has a similar interface: they take the tree
+// being constructed and returns the id of its created node(s) or any
+// error.
+//
+// It returns the node id of the top-level node and sets it as root
+// when the next tree is not no parse; or NoNodeId when the next tree
+// is no parse. If it fails to read the first token, the IO error from
+// the input is returned; otherwise the returned error is one of the
+// parse errors.
+func (p *Parser) parseS(tree *LabelTree) (NodeId, error) {
+	// (
+	_, kind, err := p.nextToken()
+	if err != nil {
+		return NoNodeId, err
 	}
 	if kind != kOpen {
-		err = NoOpenParen
-		return
+		return NoNodeId, NoOpenParen
 	}
 
-	node, err = parser.parseNode()
-	// If the error is NoParse, we still need to consume the closing )
-	if err != nil && err != NoParse {
-		return
+	root, err := p.parseTree(tree)
+	if err != nil {
+		return NoNodeId, err
 	}
 
 	// )
-	_, kind, err2 := parser.nextToken()
-	if err2 != nil || kind != kClose {
-		err = NoCloseParen
+	_, kind, err = p.nextToken()
+	if err != nil || kind != kClose {
+		return NoNodeId, NoCloseParen
 	}
 
-	return
+	// Success; set the root when the tree is not empty.
+	if root != NoNodeId {
+		tree.Topology.SetRoot(root)
+	}
+	return root, nil
 }
 
-// ParseString parses a single string to extract one tree and discards
-// the rest of the string.
-func ParseString(input string) (Node, error) {
-	return NewParser(strings.NewReader(input)).Next()
-}
+// parseTree parses a tree using the following rule,
+//   Tree -> '(' { ')' | Node ')' }
+// In case 1, the tree is empty and NoNodeId is returned as the
+// created node. In case 2, a node is actually created and
+// returned. Any IO error is translated to parse errors and returned.
+func (p *Parser) parseTree(tree *LabelTree) (NodeId, error) {
+	_, kind, err := p.nextToken()
+	if err != nil || kind != kOpen {
+		return NoNodeId, NoOpenParen
+	}
 
-// FromString converts a single string to extract one tree. Panics if
-// there is any error.
-func FromString(input string) Node {
-	p := NewParser(strings.NewReader(input))
-	tree, err := p.Next()
+	_, kind, err = p.peekToken()
+	if err == nil && kind == kClose {
+		p.nextToken()
+		return NoNodeId, nil
+	}
+
+	node, err := p.parseNode(tree)
 	if err != nil {
-		panic(err)
+		return NoNodeId, err
 	}
-	_, err = p.Next()
-	if err != io.EOF {
-		panic(ResidualInput)
+
+	_, kind, err = p.nextToken()
+	if err != nil || kind != kClose {
+		return NoNodeId, NoCloseParen
 	}
-	return tree
+
+	return node, nil
 }
 
-// ParseAll extracts all the trees from the remaining input until the
-// end of input or first parse error. A nil pointer is stored
-// everytime a NoParse is encountered.
-func ParseAll(input io.ByteScanner) (trees []*Node, err error) {
-	p := NewParser(input)
-	node, err := p.Next()
-	for err == nil || err == NoParse {
-		if err == NoParse {
-			trees = append(trees, nil)
-		} else {
-			trees = append(trees, &Node{node.Label, node.Children})
+// parseNode parses a tree node using the following rule,
+//   Node -> Label { Label | Children }
+// When succeeds, it adds the parsed node to the tree and returns the
+// node id. Otherwise it returns one of the parse errors.
+func (p *Parser) parseNode(tree *LabelTree) (NodeId, error) {
+	// First Label --- Category
+	token, kind, err := p.nextToken()
+	if err != nil || kind != kWord {
+		return NoNodeId, NoCategory
+	}
+
+	// Create the node
+	node := tree.Topology.AddNode()
+	tree.Label = append(tree.Label, string(token))
+
+	// ( or word
+	_, kind, err = p.peekToken()
+	if err != nil || kind == kClose {
+		return NoNodeId, NoWordOrOpenParen
+	}
+
+	switch kind {
+	case kWord:
+		// This is a pre-terminal
+		token, _, _ := p.nextToken()
+		child := tree.Topology.AddNode()
+		tree.Label = append(tree.Label, string(token))
+		tree.Topology.AppendChild(node, child)
+	case kOpen:
+		// This is a non-terminal
+		children, err := p.parseChildren(tree)
+		if err != nil {
+			return NoNodeId, err
 		}
-		node, err = p.Next()
+		// Directly use the returned children to avoid reallocation
+		tree.Topology.children[node] = children
+		for _, child := range children {
+			tree.Topology.parent[child] = node
+		}
+	default:
+		err = ParseError
+		return NoNodeId, err
 	}
-	if err == io.EOF {
-		err = nil
+
+	return node, nil
+}
+
+// parseChildren parses a list of children using the following rule,
+//   Children -> '(' Node ')' { eps | Children }
+// It returns a slice of children node ids or any error. The caller
+// owns the returend slice.
+func (p *Parser) parseChildren(tree *LabelTree) ([]NodeId, error) {
+	children := make([]NodeId, 0, 4)
+	// First node
+	_, kind, err := p.nextToken()
+	if err != nil || kind != kOpen {
+		return nil, NoOpenParen
 	}
-	return
+
+	child, err := p.parseNode(tree)
+	if err != nil {
+		return nil, err
+	}
+	children = append(children, child)
+
+	_, kind, err = p.nextToken()
+	if err != nil || kind != kClose {
+		return nil, NoCloseParen
+	}
+
+	// The rest
+	_, kind, err = p.peekToken()
+	for err == nil && kind == kOpen {
+		p.nextToken()
+
+		child, err = p.parseNode(tree)
+		if err != nil {
+			return nil, err
+		}
+		children = append(children, child)
+
+		_, kind, err = p.nextToken()
+		if err != nil || kind != kClose {
+			return nil, NoCloseParen
+		}
+
+		_, kind, err = p.peekToken()
+	}
+
+	return children, nil
 }
 
 // kind is the kind of token found by the parser. It only takes the
 // following 3 constant values.
 type kind int
 
+// Three kinds of tokens.
 const (
 	kOpen  kind = 0
 	kClose      = iota
@@ -161,86 +308,5 @@ func (p *Parser) nextToken() (token []byte, kind kind, err error) {
 		kind = kWord
 	}
 	token = p.token
-	return
-}
-
-// parseNode tries to parse a tree node from tok. When succeeds, it
-// returns the tree node. When the next expr is no parse (()), it
-// returns NoParse. Otherwise it returns other errors defined above.
-func (p *Parser) parseNode() (node Node, err error) {
-	// (
-	_, kind, err := p.nextToken()
-	if err != nil || kind != kOpen {
-		err = NoOpenParen
-		return
-	}
-	_, kind, err = p.peekToken()
-	if err != nil {
-		return
-	}
-	if kind == kClose {
-		p.nextToken()
-		err = NoParse
-		return
-	}
-	// Category
-	token, kind, err := p.nextToken()
-	if err != nil || kind != kWord {
-		err = NoCategory
-		return
-	}
-	node.Label = string(token)
-
-	// ( or word
-	token, kind, err = p.peekToken()
-	if err != nil || kind == kClose {
-		err = NoWordOrOpenParen
-		return
-	}
-
-	switch kind {
-	case kWord:
-		node.Children = append(node.Children, Node{string(token), nil})
-		p.nextToken() // consume the peeked token
-	case kOpen:
-		node.Children, err = p.parseChildren()
-		if err != nil {
-			return
-		}
-	default:
-		err = ParseError
-		return
-	}
-
-	_, kind, err = p.nextToken()
-	if err != nil || kind != kClose {
-		err = NoCloseParen
-		return
-	}
-
-	return
-}
-
-// parseChildren parses at least one node form and appends these to
-// children until it encounters the closing parenthesis or an error.
-func (p *Parser) parseChildren() (children []Node, err error) {
-	children = make([]Node, 0, 4)
-	// (...)
-	child, err := p.parseNode()
-	if err != nil {
-		return
-	}
-	children = append(children, child)
-
-	_, kind, err := p.peekToken()
-	for err == nil && kind == kOpen {
-		child, err = p.parseNode()
-		if err != nil {
-			return
-		}
-		children = append(children, child)
-		_, kind, err = p.peekToken()
-	}
-	err = nil
 	return
 }
