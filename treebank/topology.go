@@ -221,17 +221,16 @@ func remap(t *Topology, newToOld []NodeId) []NodeId {
 }
 
 // Disconnect removes the nodes marked as true in remove from their
-// parents. Returns the number of nodes that is disconnected.
-func (t *Topology) Disconnect(remove []bool) int {
-	numDisconnected := 0
-	for i, r := range remove {
-		if !r {
-			continue
-		}
-		node := NodeId(i)
-		if node == t.root {
-			t.root = NoNodeId
-		} else {
+// parents.
+func (t *Topology) Disconnect(remove []bool) {
+	if t.root != NoNodeId && remove[t.root] {
+		t.root = NoNodeId
+	} else {
+		for i, r := range remove {
+			if !r {
+				continue
+			}
+			node := NodeId(i)
 			parent := t.parent[node]
 			if parent == NoNodeId {
 				continue
@@ -244,7 +243,5 @@ func (t *Topology) Disconnect(remove []bool) int {
 			copy(t.children[parent][j:], t.children[parent][j+1:])
 			t.children[parent] = t.children[parent][:len(t.children[parent])-1]
 		}
-		numDisconnected++
 	}
-	return numDisconnected
 }
