@@ -27,6 +27,15 @@ func (tree *LabelTree) String() string {
 	return buf.String()
 }
 
+// StringUnder writes out the tree under the given node in sexp.
+func (tree *LabelTree) StringUnder(node NodeId) string {
+	buf := bytes.NewBuffer(make([]byte, 0, 1024))
+	if node != NoNodeId {
+		dfsString(tree, node, buf)
+	}
+	return buf.String()
+}
+
 // dfsString traverses a non-empty tree starting at node and writes
 // the string representation to buf.
 func dfsString(tree *LabelTree, node NodeId, buf *bytes.Buffer) {
