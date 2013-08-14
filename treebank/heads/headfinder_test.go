@@ -1,4 +1,4 @@
-package treebank
+package heads
 
 import (
 	"testing"
