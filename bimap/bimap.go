@@ -45,6 +45,23 @@ func (m *Map) FindString(s string) int {
 	return NoInt
 }
 
+// AppendString translates a slice of string and appends the result to
+// the given slice.
+func (m *Map) AppendString(strs []string, ints *[]int) {
+	for _, s := range strs {
+		*ints = append(*ints, m.FindString(s))
+	}
+}
+
+// TranslateString translates a slice of string into a slice of integers.
+func (m *Map) TranslateString(strs []string) []int {
+	ints := make([]int, len(strs))
+	for i, s := range strs {
+		ints[i] = m.FindString(s)
+	}
+	return ints
+}
+
 // FindInt finds the string corresponding to the given integral
 // id. Returns the string if the id is in the map; or an empty string
 // if it is not.
@@ -53,6 +70,23 @@ func (m *Map) FindInt(i int) string {
 		return m.intToStr[i]
 	}
 	return ""
+}
+
+// AppendInt translates a slice of integers and appends the result to
+// the given slice.
+func (m *Map) AppendInt(ints []int, strs *[]string) {
+	for _, id := range ints {
+		*strs = append(*strs, m.FindInt(id))
+	}
+}
+
+// TranslateInt translates a slice of integers into a slice of strings.
+func (m *Map) TranslateInt(ints []int) []string {
+	strs := make([]string, len(ints))
+	for i, id := range ints {
+		strs[i] = m.FindInt(id)
+	}
+	return strs
 }
 
 // Size returns the size of the map, which is also the next id to be
