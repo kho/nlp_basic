@@ -24,7 +24,7 @@ func TestStripAnnotation(t *testing.T) {
 	}
 }
 
-var removeNoneCases = []struct{ input, output *LabelTree }{
+var removeNoneCases = []struct{ input, output *ParseTree }{
 	{FromString("((S (NP this) (VP (V is) (NP (DT a) (NN test)))))"),
 		FromString("((S (NP this) (VP (V is) (NP (DT a) (NN test)))))")},
 	{FromString("((S (NP (-NONE- (NP *PRO*)))))"), FromString("(())")},
@@ -44,10 +44,10 @@ func TestRemoveNone(t *testing.T) {
 }
 
 var isPreTerminalCases = []struct {
-	input  *LabelTree
+	input  *ParseTree
 	output bool
 }{
-	{&LabelTree{fromParents(0, []NodeId{NoNodeId}), []string{"A"}}, false},
+	{&ParseTree{fromParents(0, []NodeId{NoNodeId}), []string{"A"}}, false},
 	{FromString("((A B))"), true},
 	{FromString("((A (B (C D))))"), false},
 	{FromString("((A (B C) (D E)))"), false},

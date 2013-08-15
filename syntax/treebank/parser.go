@@ -18,13 +18,13 @@ var (
 
 // ParseString parses a single string to extract one tree and discards
 // the rest of the string.
-func ParseString(input string) (*LabelTree, error) {
+func ParseString(input string) (*ParseTree, error) {
 	return NewParser(strings.NewReader(input)).Next()
 }
 
 // FromString converts a single string to extract one tree. Panics if
 // there is any error.
-func FromString(input string) *LabelTree {
+func FromString(input string) *ParseTree {
 	p := NewParser(strings.NewReader(input))
 	tree, err := p.Next()
 	if err != nil {
@@ -40,7 +40,7 @@ func FromString(input string) *LabelTree {
 // ParseAll extracts all the trees from the remaining input until the
 // end of input or first parse error. A nil pointer is stored
 // everytime a NoParse is encountered.
-func ParseAll(input io.ByteScanner) (trees []*LabelTree, err error) {
+func ParseAll(input io.ByteScanner) (trees []*ParseTree, err error) {
 	p := NewParser(input)
 	tree, err := p.Next()
 	for err == nil {
@@ -72,8 +72,8 @@ func NewParser(input io.ByteScanner) *Parser {
 // returns the tree and nil error. When it encounters an error when
 // reading the first token, it returns the IO error from the scanner;
 // otherwise it returns one of the above parser errors.
-func (p *Parser) Next() (*LabelTree, error) {
-	tree := &LabelTree{NewEmptyTopology(), make([]string, 0, 16)}
+func (p *Parser) Next() (*ParseTree, error) {
+	tree := &ParseTree{NewEmptyTopology(), make([]string, 0, 16)}
 	_, err := p.parseS(tree)
 	if err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ func (p *Parser) Next() (*LabelTree, error) {
 // is no parse. If it fails to read the first token, the IO error from
 // the input is returned; otherwise the returned error is one of the
 // parse errors.
-func (p *Parser) parseS(tree *LabelTree) (NodeId, error) {
+func (p *Parser) parseS(tree *ParseTree) (NodeId, error) {
 	// (
 	_, kind, err := p.nextToken()
 	if err != nil {
@@ -132,7 +132,7 @@ func (p *Parser) parseS(tree *LabelTree) (NodeId, error) {
 // In case 1, the tree is empty and NoNodeId is returned as the
 // created node. In case 2, a node is actually created and
 // returned. Any IO error is translated to parse errors and returned.
-func (p *Parser) parseTree(tree *LabelTree) (NodeId, error) {
+func (p *Parser) parseTree(tree *ParseTree) (NodeId, error) {
 	_, kind, err := p.nextToken()
 	if err != nil || kind != kOpen {
 		return NoNodeId, NoOpenParen
@@ -161,7 +161,7 @@ func (p *Parser) parseTree(tree *LabelTree) (NodeId, error) {
 //   Node -> Label { Label | Children }
 // When succeeds, it adds the parsed node to the tree and returns the
 // node id. Otherwise it returns one of the parse errors.
-func (p *Parser) parseNode(tree *LabelTree) (NodeId, error) {
+func (p *Parser) parseNode(tree *ParseTree) (NodeId, error) {
 	// First Label --- Category
 	token, kind, err := p.nextToken()
 	if err != nil || kind != kWord {
@@ -208,7 +208,7 @@ func (p *Parser) parseNode(tree *LabelTree) (NodeId, error) {
 //   Children -> '(' Node ')' { eps | Children }
 // It returns a slice of children node ids or any error. The caller
 // owns the returend slice.
-func (p *Parser) parseChildren(tree *LabelTree) ([]NodeId, error) {
+func (p *Parser) parseChildren(tree *ParseTree) ([]NodeId, error) {
 	children := make([]NodeId, 0, 4)
 	// First node
 	_, kind, err := p.nextToken()

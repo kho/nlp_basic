@@ -91,15 +91,15 @@ func TestParserPeekPeekNext(t *testing.T) {
 
 type parserCase struct {
 	input string
-	tree  *LabelTree
+	tree  *ParseTree
 	err   bool
 }
 
 var parseCases = []parserCase{
-	{"((a b))", &LabelTree{fromParents(0, []NodeId{NoNodeId, 0}), []string{"a", "b"}}, false},
-	{"((a (b c)))", &LabelTree{fromParents(0, []NodeId{NoNodeId, 0, 1}), []string{"a", "b", "c"}}, false},
-	{"((a(b c)(d (e f))))", &LabelTree{fromParents(0, []NodeId{NoNodeId, 0, 1, 0, 3, 4}), []string{"a", "b", "c", "d", "e", "f"}}, false},
-	{"(())", &LabelTree{NewEmptyTopology(), nil}, false},
+	{"((a b))", &ParseTree{fromParents(0, []NodeId{NoNodeId, 0}), []string{"a", "b"}}, false},
+	{"((a (b c)))", &ParseTree{fromParents(0, []NodeId{NoNodeId, 0, 1}), []string{"a", "b", "c"}}, false},
+	{"((a(b c)(d (e f))))", &ParseTree{fromParents(0, []NodeId{NoNodeId, 0, 1, 0, 3, 4}), []string{"a", "b", "c", "d", "e", "f"}}, false},
+	{"(())", &ParseTree{NewEmptyTopology(), nil}, false},
 	{"", nil, true},
 	{"(", nil, true},
 	{")", nil, true},
@@ -272,7 +272,7 @@ func formatInput(s string, r unreader) string {
 	return fmt.Sprintf("%s.%s", s[:len(s)-unread], s[len(s)-unread:])
 }
 
-func labelTreeSanityCheck(tree *LabelTree, t *testing.T) {
+func labelTreeSanityCheck(tree *ParseTree, t *testing.T) {
 	topologySanityCheck(tree.Topology, t)
 	if size1, size2 := tree.Topology.NumNodes(), len(tree.Label); size1 != size2 {
 		t.Errorf("num nodes and num labels do not match: %d vs %d\n",
@@ -280,7 +280,7 @@ func labelTreeSanityCheck(tree *LabelTree, t *testing.T) {
 	}
 }
 
-func equiv(a *LabelTree, b *LabelTree) bool {
+func equiv(a *ParseTree, b *ParseTree) bool {
 	if !a.Topology.Equal(b.Topology) {
 		return false
 	}

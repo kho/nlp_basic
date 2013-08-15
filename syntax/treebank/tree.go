@@ -4,18 +4,20 @@ import (
 	"bytes"
 )
 
-// LabelTree is a parse tree with its labels as strings
-type LabelTree struct {
+// ParseTree is a tree with rich annotations of nodes stored as slices
+// addressed by NodeIds from the topology. Certain annotations may not
+// be available, in which case a nil slice is stored instead.
+type ParseTree struct {
 	Topology *Topology
 	Label    []string
 }
 
-func (tree *LabelTree) NumNodes() int {
+func (tree *ParseTree) NumNodes() int {
 	return len(tree.Label)
 }
 
 // String writes out the tree in standard Treebank format
-func (tree *LabelTree) String() string {
+func (tree *ParseTree) String() string {
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 	buf.WriteByte('(')
 	if tree.Topology.Root() == NoNodeId {
@@ -28,7 +30,7 @@ func (tree *LabelTree) String() string {
 }
 
 // StringUnder writes out the tree under the given node in sexp.
-func (tree *LabelTree) StringUnder(node NodeId) string {
+func (tree *ParseTree) StringUnder(node NodeId) string {
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 	if node != NoNodeId {
 		dfsString(tree, node, buf)
@@ -38,7 +40,7 @@ func (tree *LabelTree) StringUnder(node NodeId) string {
 
 // dfsString traverses a non-empty tree starting at node and writes
 // the string representation to buf.
-func dfsString(tree *LabelTree, node NodeId, buf *bytes.Buffer) {
+func dfsString(tree *ParseTree, node NodeId, buf *bytes.Buffer) {
 	if tree.Topology.Leaf(node) {
 		buf.WriteString(tree.Label[node])
 	} else {
@@ -54,7 +56,7 @@ func dfsString(tree *LabelTree, node NodeId, buf *bytes.Buffer) {
 
 // TopSort topologically sorts the tree and re-organizes the labels
 // into a top-down order.
-func (tree *LabelTree) Topsort() *LabelTree {
+func (tree *ParseTree) Topsort() *ParseTree {
 	oldToNew := tree.Topology.Topsort()
 	newLabel := make([]string, tree.Topology.NumNodes())
 	for oldId, label := range tree.Label {
@@ -69,7 +71,7 @@ func (tree *LabelTree) Topsort() *LabelTree {
 
 // StripAnnotation strips off rich treebank annotation (e.g. NP-1,
 // NP-SUBJ, etc) and returns the tree itself.
-func (tree *LabelTree) StripAnnotation() *LabelTree {
+func (tree *ParseTree) StripAnnotation() *ParseTree {
 	for i, label := range tree.Label {
 		node := NodeId(i)
 		if tree.Topology.Leaf(node) {
@@ -96,7 +98,7 @@ func stripLabelAnnotation(label string) string {
 }
 
 // RemoveNone removes -NONE- and its unary ancestors.
-func (tree *LabelTree) RemoveNone() *LabelTree {
+func (tree *ParseTree) RemoveNone() *ParseTree {
 	tree.Topsort()
 	invisible := make([]bool, tree.NumNodes())
 	// Mark in bottom-up order
