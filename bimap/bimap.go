@@ -21,6 +21,15 @@ func New() *Map {
 	return &Map{make(map[string]int), make([]string, 0, 1024)}
 }
 
+// FromSlice creates an empty Map from the given slice
+func FromSlice(s []string) *Map {
+	m := New()
+	for _, i := range s {
+		m.Add(i)
+	}
+	return m
+}
+
 // Add adds the given string into the map and returns its id. The
 // string being added should not be empty. This is not thread safe.
 func (m *Map) Add(s string) int {

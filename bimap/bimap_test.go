@@ -33,6 +33,13 @@ func TestMap(t *testing.T) {
 		t.Errorf("expected NoInt; got %d\n", i)
 	}
 
+	m = FromSlice(strs)
+	for i, s := range strs {
+		if id := m.Add(s); id != i {
+			t.Errorf("expected %d; got %d\n", i, id)
+		}
+	}
+
 	var intArray [3]int
 	intSlice := intArray[:0]
 	m.AppendByString(strs, &intSlice)
