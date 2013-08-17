@@ -36,8 +36,9 @@ func (m *Map) Add(s string) int {
 	return i
 }
 
-// FindString finds the id or returns NoInt if the string is not in the map.
-func (m *Map) FindString(s string) int {
+// FindByString finds the id or returns NoInt if the string is not in
+// the map.
+func (m *Map) FindByString(s string) int {
 	i, ok := m.strToInt[s]
 	if ok {
 		return i
@@ -45,46 +46,48 @@ func (m *Map) FindString(s string) int {
 	return NoInt
 }
 
-// AppendString translates a slice of string and appends the result to
-// the given slice.
-func (m *Map) AppendString(strs []string, ints *[]int) {
+// AppendByString translates a slice of string and appends the result
+// to the given slice.
+func (m *Map) AppendByString(strs []string, ints *[]int) {
 	for _, s := range strs {
-		*ints = append(*ints, m.FindString(s))
+		*ints = append(*ints, m.FindByString(s))
 	}
 }
 
-// TranslateString translates a slice of string into a slice of integers.
-func (m *Map) TranslateString(strs []string) []int {
+// TranslateByString translates a slice of string into a slice of
+// integers.
+func (m *Map) TranslateByString(strs []string) []int {
 	ints := make([]int, len(strs))
 	for i, s := range strs {
-		ints[i] = m.FindString(s)
+		ints[i] = m.FindByString(s)
 	}
 	return ints
 }
 
-// FindInt finds the string corresponding to the given integral
+// FindByInt finds the string corresponding to the given integral
 // id. Returns the string if the id is in the map; or an empty string
 // if it is not.
-func (m *Map) FindInt(i int) string {
+func (m *Map) FindByInt(i int) string {
 	if 0 <= i && i < len(m.intToStr) {
 		return m.intToStr[i]
 	}
 	return ""
 }
 
-// AppendInt translates a slice of integers and appends the result to
-// the given slice.
-func (m *Map) AppendInt(ints []int, strs *[]string) {
+// AppendByInt translates a slice of integers and appends the result
+// to the given slice.
+func (m *Map) AppendByInt(ints []int, strs *[]string) {
 	for _, id := range ints {
-		*strs = append(*strs, m.FindInt(id))
+		*strs = append(*strs, m.FindByInt(id))
 	}
 }
 
-// TranslateInt translates a slice of integers into a slice of strings.
-func (m *Map) TranslateInt(ints []int) []string {
+// TranslateByInt translates a slice of integers into a slice of
+// strings.
+func (m *Map) TranslateByInt(ints []int) []string {
 	strs := make([]string, len(ints))
 	for i, id := range ints {
-		strs[i] = m.FindInt(id)
+		strs[i] = m.FindByInt(id)
 	}
 	return strs
 }
