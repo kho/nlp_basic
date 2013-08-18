@@ -55,24 +55,6 @@ func (m *Map) FindByString(s string) int {
 	return NoInt
 }
 
-// AppendByString translates a slice of string and appends the result
-// to the given slice.
-func (m *Map) AppendByString(strs []string, ints *[]int) {
-	for _, s := range strs {
-		*ints = append(*ints, m.FindByString(s))
-	}
-}
-
-// TranslateByString translates a slice of string into a slice of
-// integers.
-func (m *Map) TranslateByString(strs []string) []int {
-	ints := make([]int, len(strs))
-	for i, s := range strs {
-		ints[i] = m.FindByString(s)
-	}
-	return ints
-}
-
 // FindByInt finds the string corresponding to the given integral
 // id. Returns the string if the id is in the map; or an empty string
 // if it is not.
@@ -81,6 +63,24 @@ func (m *Map) FindByInt(i int) string {
 		return m.intToStr[i]
 	}
 	return ""
+}
+
+// AppendByString translates a slice of string and appends the result
+// to the given slice. New words are also added to the Map.
+func (m *Map) AppendByString(strs []string, ints *[]int) {
+	for _, s := range strs {
+		*ints = append(*ints, m.Add(s))
+	}
+}
+
+// TranslateByString translates a slice of string into a slice of
+// integers. New words are also added to the Map.
+func (m *Map) TranslateByString(strs []string) []int {
+	ints := make([]int, len(strs))
+	for i, s := range strs {
+		ints[i] = m.Add(s)
+	}
+	return ints
 }
 
 // AppendByInt translates a slice of integers and appends the result
