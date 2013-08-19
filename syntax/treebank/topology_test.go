@@ -10,20 +10,14 @@ func TestNewRootedTopology(t *testing.T) {
 		t.Fatalf("NewRootedTopology created a topology with %d nodes\n",
 			numNodes)
 	}
-	root := rooted.Root()
+	root := rooted.Root
 	if root != 0 {
 		t.Fatalf("NewRootedTopology created a topology with root %d\n",
 			root)
 	}
 
-	if parent := rooted.Parent(root); parent != NoNodeId {
-		t.Errorf("NewRootedTopology created a topology of root with parent %d\n",
-			parent)
-	}
-
-	if children := rooted.Children(root); len(children) != 0 {
-		t.Errorf("NewRootedTopology created a topology of root with children %v\n",
-			children)
+	if children := rooted.Children[root]; len(children) != 0 {
+		t.Errorf("NewRootedTopology created a topology of root with children %v\n", children)
 	}
 }
 
@@ -45,9 +39,9 @@ func TestTopologyCopy(t *testing.T) {
 			*t1, *t2)
 	}
 
-	oldRoot := t1.Root()
+	oldRoot := t1.Root
 	newRoot := t1.AddNode()
-	t1.SetRoot(newRoot)
+	t1.Root = newRoot
 	t1.AppendChild(newRoot, oldRoot)
 
 	if size1, size2 := t1.NumNodes(), t2.NumNodes(); size1 == size2 {
@@ -55,14 +49,9 @@ func TestTopologyCopy(t *testing.T) {
 			size1, size2)
 	}
 
-	if root1, root2 := t1.Root(), t2.Root(); root1 == root2 {
+	if root1, root2 := t1.Root, t2.Root; root1 == root2 {
 		t.Errorf("roots do not differ after modification: %d vs %d\n",
 			root1, root2)
-	}
-
-	if parent1, parent2 := t1.Parent(0), t2.Parent(0); parent1 == parent2 {
-		t.Errorf("parents do not differ after modification: %d vs %d\n",
-			parent1, parent2)
 	}
 }
 
@@ -71,111 +60,51 @@ func TestTopologyAddNode(t *testing.T) {
 	trees := []*Topology{NewEmptyTopology(), NewRootedTopology()}
 	for _, tree := range trees {
 		oldSize := tree.NumNodes()
-		oldRoot := tree.Root()
-		oldTree := tree.Copy()
+		oldRoot := tree.Root
 		for i := 0; i < numInserts; i++ {
 			node := tree.AddNode()
 			if node != NodeId(i+oldSize) {
 				t.Errorf("expected new id %d; got %d\n", i+oldSize, node)
 			}
-			if parent := tree.Parent(node); parent != NoNodeId {
-				t.Errorf("expected parent %d; got %d\n", NoNodeId, parent)
-			}
-			if children := tree.Children(node); len(children) != 0 {
+			if children := tree.Children[node]; len(children) != 0 {
 				t.Errorf("expected tree children; got %v\n", children)
 			}
 		}
 		topologySanityCheck(tree, t)
-		if root := tree.Root(); root != oldRoot {
+		if root := tree.Root; root != oldRoot {
 			t.Errorf("expected root %d; got %d\n", oldRoot, root)
 		}
 		if numNodes := tree.NumNodes(); numNodes != oldSize+numInserts {
 			t.Errorf("expected %d nodes after AddNode(); got %d\n",
 				oldSize+numInserts, numNodes)
 		}
-		for i := 0; i < oldSize; i++ {
-			n := NodeId(i)
+	}
+}
 
-			if oldParent, parent := oldTree.Parent(n), tree.Parent(n); oldParent != parent {
-				t.Errorf("parent of old node %d changed from %d to %d\n",
-					n, oldParent, parent)
-			}
+func TestTopologyFillUpLink(t *testing.T) {
+	tree := NewEmptyTopology()
+	tree.FillUpLink()
+	if len(tree.UpLink) != 0 {
+		t.Errorf("non-empty UpLink out of empty topology %v", tree.UpLink)
+	}
+	a, b, c, d, e := tree.AddNode(), tree.AddNode(), tree.AddNode(), tree.AddNode(), tree.AddNode()
+	tree.AppendChild(a, b)
+	tree.AppendChild(a, c)
+	tree.AppendChild(e, d)
+	tree.UpLink = []UpLink{{}, {}, {}}
+	tree.FillUpLink()
+	if len(tree.UpLink) != tree.NumNodes() {
+		t.Errorf("Topology has %d nodes; UpLink has %d elements", tree.NumNodes(), len(tree.UpLink))
+	}
+	answer := []UpLink{{NoNodeId, 0}, {a, 0}, {a, 1}, {e, 0}, {NoNodeId, 0}}
+	for i, uplink := range tree.UpLink {
+		if uplink != answer[i] {
+			t.Errorf("expected %v; got %v", answer[i], uplink)
 		}
 	}
 }
 
-func TestTopologySetRoot(t *testing.T) {
-	tree := NewRootedTopology()
-	tree.AppendChild(tree.Root(), tree.AddNode())
-	newRoot := tree.AddNode()
-	save := tree.Copy()
-	tree.SetRoot(newRoot)
-	topologySanityCheck(tree, t)
-
-	if oldSize, newSize := save.NumNodes(), tree.NumNodes(); oldSize != newSize {
-		t.Errorf("num nodes changed from %d to %d\n", oldSize, newSize)
-	}
-
-	if curRoot := tree.Root(); curRoot != newRoot {
-		t.Errorf("expected new root %d; got %d\n", newRoot, curRoot)
-	}
-
-	if rootParent := tree.Parent(newRoot); rootParent != NoNodeId {
-		t.Errorf("new root %d has parent %d\n", newRoot, rootParent)
-	}
-
-	for i := 0; i < tree.NumNodes(); i++ {
-		n := NodeId(i)
-		if n == save.Root() || n == tree.Root() {
-			continue
-		}
-		if oldParent, newParent := save.Parent(n), tree.Parent(n); oldParent != newParent {
-			t.Errorf("SetRoot() changed %d's parent from %d to %d\n",
-				n, oldParent, newParent)
-		}
-	}
-}
-
-func TestTopologyAppendChild(t *testing.T) {
-	tree := NewRootedTopology()
-	tree.AddNode()
-	tree.AddNode()
-	tree.AppendChild(2, 1)
-	topologySanityCheck(tree, t)
-	p0, p1, p2 := tree.Parent(0), tree.Parent(1), tree.Parent(2)
-	a0, a1, a2 := NoNodeId, NodeId(2), NoNodeId
-	if p0 != a0 {
-		t.Errorf("expected parent %d; got %d\n", a0, p0)
-	}
-	if p1 != a1 {
-		t.Errorf("expected parent %d; got %d\n", a1, p1)
-	}
-	if p2 != a2 {
-		t.Errorf("expected parent %d; got %d\n", a2, p2)
-	}
-	// Appending root
-	func() {
-		defer func() {
-			err := recover()
-			if err == nil {
-				t.Error("expected panic; got nil")
-			}
-		}()
-		tree.AppendChild(1, 0)
-	}()
-	// Appending twice
-	func() {
-		defer func() {
-			err := recover()
-			if err == nil {
-				t.Error("expected panic; got nil")
-			}
-		}()
-		tree.AppendChild(0, 1)
-	}()
-}
-
-func TestComponents(t *testing.T) {
+func TestTopologyComponents(t *testing.T) {
 	if c := NewEmptyTopology().Components(); len(c) != 0 {
 		t.Errorf("expected empty components; got %v\n", c)
 	}
@@ -211,49 +140,40 @@ func TestTopologyTopsort(t *testing.T) {
 		fromParents(NoNodeId, []NodeId{1, NoNodeId, 1, NoNodeId, 3, 3}),
 	}
 	for _, tree := range topsortCases {
-		t.Log(*tree)
 		save := tree.Copy()
 		oldToNew := tree.Topsort()
 		topologySanityCheck(tree, t)
 		numComponents := len(tree.Components())
-		if save.Root() != NoNodeId && numComponents != 1 {
+		if save.Root != NoNodeId && numComponents != 1 {
 			t.Errorf("expected 1 component; got %d\n", numComponents)
 		}
-		if save.Root() == NoNodeId && numComponents != 0 {
+		if save.Root == NoNodeId && numComponents != 0 {
 			t.Errorf("expected 0 component; got %d\n", numComponents)
 		}
-		for i := 0; i < tree.NumNodes(); i++ {
-			child, parent := NodeId(i), tree.Parent(NodeId(i))
-			if parent == NoNodeId {
-				if child != tree.Root() {
-					t.Errorf("dangling node %d after Topsort(); tree is %v\n",
-						child, *tree)
-				}
-			} else {
-				if child <= parent {
-					t.Errorf("not in topological order: child %d, parent %d\n",
-						child, parent)
-				}
-			}
-		}
 		for i := 0; i < save.NumNodes(); i++ {
-			oldNode := NodeId(i)
-			oldParent := save.Parent(oldNode)
 			newNode := oldToNew[i]
 			if newNode != NoNodeId {
 				checkNodeRange(newNode, NodeId(tree.NumNodes()), t)
-				newParent := tree.Parent(newNode)
-				if oldParent == NoNodeId {
-					if newParent != NoNodeId {
-						t.Errorf("old parent is %d; but new parent is %d\n", oldParent, newParent)
-					}
-				} else if oldToNew[oldParent] != newParent {
-					t.Errorf("expected old %d maps to new %d; got %d\n",
-						oldParent, newParent, oldToNew[oldParent])
-				}
 			}
 		}
 	}
+}
+
+func TestTopologyTopsortCycle(t *testing.T) {
+	tree := NewEmptyTopology()
+	a, b := tree.AddNode(), tree.AddNode()
+	tree.Root = a
+	tree.AppendChild(a, b)
+	tree.AppendChild(b, a)
+	func() {
+		defer func() {
+			err := recover()
+			if err == nil {
+				t.Errorf("expected error; got nil")
+			}
+		}()
+		tree.Topsort()
+	}()
 }
 
 func TestTopologyDisconnect(t *testing.T) {
@@ -264,18 +184,27 @@ func TestTopologyDisconnect(t *testing.T) {
 		{NewEmptyTopology(), NewEmptyTopology(), nil},
 		{NewRootedTopology(), NewRootedTopology(), []bool{false}},
 		{NewRootedTopology(), fromParents(NoNodeId, []NodeId{NoNodeId}), []bool{true}},
-		{fromParents(0, []NodeId{NoNodeId, 0, 1, 0, 3, 4}),
+		{
+			fromParents(0, []NodeId{NoNodeId, 0, 1, 0, 3, 4}),
 			fromParents(NoNodeId, []NodeId{NoNodeId, 0, 1, 0, 3, 4}),
-			[]bool{true, false, false, false, false, false}},
-		{fromParents(0, []NodeId{NoNodeId, 0, 1, 0, 3, 4}),
+			[]bool{true, false, false, false, false, false},
+		},
+		{
+			fromParents(0, []NodeId{NoNodeId, 0, 1, 0, 3, 4}),
 			fromParents(0, []NodeId{NoNodeId, NoNodeId, NoNodeId, NoNodeId, NoNodeId, NoNodeId}),
-			[]bool{false, true, true, true, true, true}},
+			[]bool{false, true, true, true, true, true},
+		},
+		{
+			fromParents(0, []NodeId{NoNodeId, 0, 1, 2, 3, 1, 5, 0, 7, 8, 7, 10}),
+			fromParents(0, []NodeId{NoNodeId, NoNodeId, 1, 2, 3, 1, 5, 0, NoNodeId, 8, 7, 10}),
+			[]bool{false, true, false, false, false, false, false, false, true, false, false, false},
+		},
 	}
 
 	for _, c := range disconnectCases {
 		c.input.Disconnect(c.remove)
 		if !c.input.Equal(c.output) {
-			t.Errorf("expected %q; got %q after disconnect with %v\n",
+			t.Errorf("expected %v; got %v after disconnect with %v\n",
 				*c.output, *c.input, c.remove)
 		}
 	}
@@ -283,36 +212,23 @@ func TestTopologyDisconnect(t *testing.T) {
 
 func topologySanityCheck(tree *Topology, t *testing.T) {
 	if tree.NumNodes() == 0 {
-		if root := tree.Root(); root != NoNodeId {
+		if root := tree.Root; root != NoNodeId {
 			t.Errorf("expected root %d; got %d\n", NoNodeId, root)
 		}
-		if len(tree.parent) != 0 {
-			t.Errorf("expected empty parent; got %v\n", tree.parent)
-		}
-		if len(tree.children) != 0 {
-			t.Errorf("expected empty children; got %v\n", tree.children)
+		if len(tree.Children) != 0 {
+			t.Errorf("expected empty children; got %v\n", tree.Children)
 		}
 	} else {
 		upper := NodeId(tree.NumNodes())
-		if tree.Root() != NoNodeId {
-			checkNodeRange(tree.Root(), upper, t)
-		}
-		for child, parent := range tree.parent {
-			checkNodeRange(NodeId(child), upper, t)
-			if parent != NoNodeId {
-				checkNodeRange(parent, upper, t)
-			}
+		if tree.Root != NoNodeId {
+			checkNodeRange(tree.Root, upper, t)
 		}
 		numEdges := 0
-		for parent, children := range tree.children {
+		for parent, children := range tree.Children {
 			numEdges += len(children)
 			checkNodeRange(NodeId(parent), upper, t)
 			for _, child := range children {
 				checkNodeRange(child, upper, t)
-				if realParent := tree.parent[child]; realParent != NodeId(parent) {
-					t.Errorf("children and parent mismatch: %d is stored as child of %d but parent[%d] = %d\n",
-						child, parent, child, realParent)
-				}
 			}
 		}
 		numComponents := len(tree.Components())
@@ -340,7 +256,7 @@ func fromParents(root NodeId, parent []NodeId) *Topology {
 		}
 	}
 	if root != NoNodeId {
-		ret.SetRoot(root)
+		ret.Root = root
 	}
 	return ret
 }
