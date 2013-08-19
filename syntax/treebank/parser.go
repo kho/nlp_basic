@@ -73,7 +73,7 @@ func NewParser(input io.ByteScanner) *Parser {
 // reading the first token, it returns the IO error from the scanner;
 // otherwise it returns one of the above parser errors.
 func (p *Parser) Next() (*ParseTree, error) {
-	tree := &ParseTree{NewEmptyTopology(), make([]string, 0, 16)}
+	tree := &ParseTree{Topology: NewEmptyTopology(), Label: make([]string, 0, 16)}
 	_, err := p.parseS(tree)
 	if err != nil {
 		return nil, err
@@ -122,7 +122,7 @@ func (p *Parser) parseS(tree *ParseTree) (NodeId, error) {
 
 	// Success; set the root when the tree is not empty.
 	if root != NoNodeId {
-		tree.Topology.SetRoot(root)
+		tree.Topology.Root = root
 	}
 	return root, nil
 }
@@ -192,10 +192,7 @@ func (p *Parser) parseNode(tree *ParseTree) (NodeId, error) {
 			return NoNodeId, err
 		}
 		// Directly use the returned children to avoid reallocation
-		tree.Topology.children[node] = children
-		for _, child := range children {
-			tree.Topology.parent[child] = node
-		}
+		tree.Topology.Children[node] = children
 	default:
 		err = ParseError
 		return NoNodeId, err

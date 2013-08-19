@@ -2,28 +2,169 @@ package treebank
 
 import (
 	"bytes"
+	"github.com/kho/nlp_basic/bimap"
+	"github.com/kho/nlp_basic/syntax/heads"
 )
 
-// ParseTree is a tree with rich annotations of nodes stored as slices
-// addressed by NodeIds from the topology. Certain annotations may not
-// be available, in which case a nil slice is stored instead.
+// ParseTree is a tree topology with rich annotations of nodes stored
+// as slices addressed by NodeIds from the topology. Certain
+// annotations may not be available, in which case a nil slice is
+// stored instead. Once a slice is assigned to a ParseTree, the tree
+// owns the underlying memory.
 type ParseTree struct {
+	// Topology is the required field which should never be nil.
 	Topology *Topology
-	Label    []string
+	// The following may be nil or not up-to-date.
+	Map      *bimap.Map // Map between label and Id
+	Label    []string   // Node label as string
+	Id       []int      // Node label as int
+	Span     []Span     // A [left, right) input span of the node
+	Head     []int      // The position of the head child of a give node; leaf's head child is some undefined value.
+	HeadLeaf []NodeId   // The head leaf of a give node; leaf's head is itself
 }
 
-func (tree *ParseTree) NumNodes() int {
-	return len(tree.Label)
+type Span struct{ Left, Right int }
+
+// RemapByLabel remaps Id by Label using the given mapping. If m is
+// nil, the mapping that is already stored is used.
+func (tree *ParseTree) RemapByLabel(m *bimap.Map) {
+	if len(tree.Label) != tree.Topology.NumNodes() {
+		panic("Label and Topology do not match in size")
+	}
+	if m == nil {
+		if tree.Map == nil {
+			panic("RemapByLabel without specifying a map")
+		}
+	} else {
+		tree.Map = m
+	}
+	tree.Id = tree.Id[:0]
+	tree.Map.AppendByString(tree.Label, &tree.Id)
 }
 
-// String writes out the tree in standard Treebank format
+// RemapById remaps Label by Id using the given mapping. If m is nil,
+// the mapping that is already stored is used.
+func (tree *ParseTree) RemapById(m *bimap.Map) {
+	if len(tree.Id) != tree.Topology.NumNodes() {
+		panic("Id and Topology do not match in size")
+	}
+	if m == nil {
+		if tree.Map == nil {
+			panic("RemapById without specifying a map")
+		}
+	} else {
+		tree.Map = m
+	}
+	tree.Label = tree.Label[:0]
+	tree.Map.AppendByInt(tree.Id, &tree.Label)
+}
+
+// FillSpan fills the Span slice.
+func (tree *ParseTree) FillSpan() {
+	numNodes := tree.Topology.NumNodes()
+	if cap(tree.Span) >= numNodes {
+		tree.Span = tree.Span[:numNodes]
+	} else {
+		tree.Span = make([]Span, numNodes)
+	}
+	if tree.Topology.Root != NoNodeId {
+		dfsFillSpan(tree, tree.Topology.Root, 0)
+	}
+}
+
+func dfsFillSpan(tree *ParseTree, node NodeId, left int) int {
+	tree.Span[node].Left = left
+	var right int
+	if tree.Topology.Leaf(node) {
+		right = left + 1
+	} else {
+		right = left
+		for _, child := range tree.Topology.Children[node] {
+			right = dfsFillSpan(tree, child, right)
+		}
+	}
+	tree.Span[node].Right = right
+	return right
+}
+
+// FillHead fills the Head slice with the given head finder. A valid
+// Label slice must present.
+func (tree *ParseTree) FillHead(finder heads.HeadFinder) {
+	numNodes := tree.Topology.NumNodes()
+	if len(tree.Label) != numNodes {
+		panic("Label and Topology do not match in size")
+	}
+	children := make([]string, 0, 16)
+	if cap(tree.Head) >= numNodes {
+		tree.Head = tree.Head[:numNodes]
+	} else {
+		tree.Head = make([]int, numNodes)
+	}
+	for i := range tree.Head {
+		node := NodeId(i)
+		if tree.Topology.Leaf(node) {
+			tree.Head[i] = -1
+		} else {
+			children = children[:0]
+			for _, child := range tree.Topology.Children[node] {
+				children = append(children, tree.Label[child])
+			}
+			tree.Head[i] = finder.FindHead(tree.Label[node], children)
+		}
+	}
+}
+
+// FillHeadLeaf fills the HeadLeaf slice. A valid Head slice must
+// present.
+func (tree *ParseTree) FillHeadLeaf() {
+	numNodes := tree.Topology.NumNodes()
+	if len(tree.Head) != numNodes {
+		panic("Head and Topology do not match in size")
+	}
+	var hl []NodeId
+	if cap(tree.HeadLeaf) >= numNodes {
+		hl = tree.HeadLeaf[:numNodes]
+	} else {
+		hl = make([]NodeId, numNodes)
+	}
+	for i, h := range tree.Head {
+		if h >= 0 {
+			hl[i] = tree.Topology.Children[i][h]
+		} else {
+			hl[i] = NodeId(i)
+		}
+	}
+	for i, h := range hl {
+		hh := hl[h]
+		for hh != hl[hh] {
+			hh = hl[hh]
+		}
+		for hl[i] != hh {
+			j := hl[i]
+			hl[i] = hh
+			i = int(j)
+		}
+	}
+	tree.HeadLeaf = hl
+}
+
+// String writes out the tree in standard Treebank format. Label must
+// be valid; or if Map and Id are available, Label will be constructed
+// and used.
 func (tree *ParseTree) String() string {
+	if len(tree.Label) != tree.Topology.NumNodes() {
+		if tree.Map != nil && len(tree.Id) == tree.Topology.NumNodes() {
+			tree.RemapById(nil)
+		} else {
+			panic("Cannot get valid Label")
+		}
+	}
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 	buf.WriteByte('(')
-	if tree.Topology.Root() == NoNodeId {
+	if tree.Topology.Root == NoNodeId {
 		buf.WriteString("()")
 	} else {
-		dfsString(tree, tree.Topology.Root(), buf)
+		dfsString(tree, tree.Topology.Root, buf)
 	}
 	buf.WriteByte(')')
 	return buf.String()
@@ -46,7 +187,7 @@ func dfsString(tree *ParseTree, node NodeId, buf *bytes.Buffer) {
 	} else {
 		buf.WriteByte('(')
 		buf.WriteString(tree.Label[node])
-		for _, child := range tree.Topology.Children(node) {
+		for _, child := range tree.Topology.Children[node] {
 			buf.WriteByte(' ')
 			dfsString(tree, child, buf)
 		}
@@ -54,19 +195,72 @@ func dfsString(tree *ParseTree, node NodeId, buf *bytes.Buffer) {
 	}
 }
 
-// TopSort topologically sorts the tree and re-organizes the labels
-// into a top-down order.
-func (tree *ParseTree) Topsort() *ParseTree {
+// TopSort topologically sorts the tree and re-organizes the optional
+// properties into a top-down order. Invalid properties are cleared to
+// nil. The mapping from old NodeId to new ones is returned.
+func (tree *ParseTree) Topsort() []NodeId {
+	oldNumNodes := tree.Topology.NumNodes()
 	oldToNew := tree.Topology.Topsort()
-	newLabel := make([]string, tree.Topology.NumNodes())
-	for oldId, label := range tree.Label {
-		newId := oldToNew[oldId]
-		if newId != NoNodeId {
-			newLabel[newId] = label
+	numNodes := tree.Topology.NumNodes()
+
+	var (
+		newLabel    []string
+		newId       []int
+		newSpan     []Span
+		newHead     []int
+		newHeadLeaf []NodeId
+	)
+
+	mapLabel := len(tree.Label) == oldNumNodes
+	mapId := len(tree.Id) == oldNumNodes
+	mapSpan := len(tree.Span) == oldNumNodes
+	mapHead := len(tree.Head) == oldNumNodes
+	mapHeadLeaf := len(tree.HeadLeaf) == oldNumNodes
+
+	if mapLabel {
+		newLabel = make([]string, numNodes)
+	}
+	if mapId {
+		newId = make([]int, numNodes)
+	}
+	if mapSpan {
+		newSpan = make([]Span, numNodes)
+	}
+	if mapHead {
+		newHead = make([]int, numNodes)
+	}
+	if mapHeadLeaf {
+		newHeadLeaf = make([]NodeId, numNodes)
+	}
+
+	for o, n := range oldToNew {
+		if n == NoNodeId {
+			continue
+		}
+		if mapLabel {
+			newLabel[n] = tree.Label[o]
+		}
+		if mapId {
+			newId[n] = tree.Id[o]
+		}
+		if mapSpan {
+			newSpan[n] = tree.Span[o]
+		}
+		if mapHead {
+			newHead[n] = tree.Head[o]
+		}
+		if mapHeadLeaf {
+			newHeadLeaf[n] = oldToNew[tree.HeadLeaf[o]]
 		}
 	}
+
+	tree.Id = newId
 	tree.Label = newLabel
-	return tree
+	tree.Span = newSpan
+	tree.Head = newHead
+	tree.HeadLeaf = newHeadLeaf
+
+	return oldToNew
 }
 
 // StripAnnotation strips off rich treebank annotation (e.g. NP-1,
@@ -100,23 +294,24 @@ func stripLabelAnnotation(label string) string {
 // RemoveNone removes -NONE- and its unary ancestors.
 func (tree *ParseTree) RemoveNone() *ParseTree {
 	tree.Topsort()
-	invisible := make([]bool, tree.NumNodes())
+	numNodes := tree.Topology.NumNodes()
+	invisible := make([]bool, numNodes)
 	// Mark in bottom-up order
-	for i := tree.NumNodes(); i > 0; i-- {
+	for i := numNodes; i > 0; i-- {
 		node := NodeId(i - 1)
 		label := tree.Label[node]
 		if label == "-NONE-" {
 			invisible[node] = true
-		} else if len(tree.Topology.Children(node)) > 0 {
+		} else if len(tree.Topology.Children[node]) > 0 {
 			invisible[node] = true
-			for _, child := range tree.Topology.Children(node) {
+			for _, child := range tree.Topology.Children[node] {
 				if !invisible[child] {
 					invisible[node] = false
 					break
 				}
 			}
 			if invisible[node] {
-				for _, child := range tree.Topology.Children(node) {
+				for _, child := range tree.Topology.Children[node] {
 					invisible[child] = false
 				}
 			}

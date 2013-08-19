@@ -96,10 +96,10 @@ type parserCase struct {
 }
 
 var parseCases = []parserCase{
-	{"((a b))", &ParseTree{fromParents(0, []NodeId{NoNodeId, 0}), []string{"a", "b"}}, false},
-	{"((a (b c)))", &ParseTree{fromParents(0, []NodeId{NoNodeId, 0, 1}), []string{"a", "b", "c"}}, false},
-	{"((a(b c)(d (e f))))", &ParseTree{fromParents(0, []NodeId{NoNodeId, 0, 1, 0, 3, 4}), []string{"a", "b", "c", "d", "e", "f"}}, false},
-	{"(())", &ParseTree{NewEmptyTopology(), nil}, false},
+	{"((a b))", &ParseTree{Topology: fromParents(0, []NodeId{NoNodeId, 0}), Label: []string{"a", "b"}}, false},
+	{"((a (b c)))", &ParseTree{Topology: fromParents(0, []NodeId{NoNodeId, 0, 1}), Label: []string{"a", "b", "c"}}, false},
+	{"((a(b c)(d (e f))))", &ParseTree{Topology: fromParents(0, []NodeId{NoNodeId, 0, 1, 0, 3, 4}), Label: []string{"a", "b", "c", "d", "e", "f"}}, false},
+	{"(())", &ParseTree{Topology: NewEmptyTopology(), Label: nil}, false},
 	{"", nil, true},
 	{"(", nil, true},
 	{")", nil, true},
@@ -176,7 +176,7 @@ func TestParseNoParse(t *testing.T) {
 		if err != nil {
 			t.Errorf("expected nil; got %q at input %q\n", err, formatInput(c, input))
 		}
-		if root := tree.Topology.Root(); root != NoNodeId {
+		if root := tree.Topology.Root; root != NoNodeId {
 			t.Errorf("expected NoNodeId; got %d\n", root)
 		}
 		labelTreeSanityCheck(tree, t)
@@ -188,7 +188,7 @@ func TestParseNoParse(t *testing.T) {
 		t.Errorf("expected nil; got %q\n", err)
 	}
 	for _, tree := range trees {
-		if root := tree.Topology.Root(); root != NoNodeId {
+		if root := tree.Topology.Root; root != NoNodeId {
 			t.Errorf("expected NoNodeId; got %d\n", root)
 		}
 		labelTreeSanityCheck(tree, t)
@@ -284,8 +284,43 @@ func equiv(a *ParseTree, b *ParseTree) bool {
 	if !a.Topology.Equal(b.Topology) {
 		return false
 	}
+	if len(a.Label) != len(b.Label) {
+		return false
+	}
 	for i := 0; i < len(a.Label); i++ {
 		if a.Label[i] != b.Label[i] {
+			return false
+		}
+	}
+	if len(a.Id) != len(b.Id) {
+		return false
+	}
+	for i := 0; i < len(a.Id); i++ {
+		if a.Id[i] != b.Id[i] {
+			return false
+		}
+	}
+	if len(a.Span) != len(b.Span) {
+		return false
+	}
+	for i := 0; i < len(a.Span); i++ {
+		if a.Span[i] != b.Span[i] {
+			return false
+		}
+	}
+	if len(a.Head) != len(b.Head) {
+		return false
+	}
+	for i := 0; i < len(a.Head); i++ {
+		if a.Head[i] != b.Head[i] {
+			return false
+		}
+	}
+	if len(a.HeadLeaf) != len(b.HeadLeaf) {
+		return false
+	}
+	for i := 0; i < len(a.HeadLeaf); i++ {
+		if a.HeadLeaf[i] != b.HeadLeaf[i] {
 			return false
 		}
 	}
