@@ -128,8 +128,38 @@ func TestParseTreeFillHeadLeaf(t *testing.T) {
 	}
 }
 
+var fillYieldPOSCases = []struct {
+	input string
+	yield []NodeId
+	pos   []NodeId
+}{
+	{"(())", nil, nil},
+	{"((A B))", []NodeId{1}, []NodeId{0}},
+	{"((A (B (C D) (E F)) (G H)))", []NodeId{3, 5, 7}, []NodeId{2, 4, 6}},
+}
+
+func TestParseTreeFillYield(t *testing.T) {
+	for _, c := range fillYieldPOSCases {
+		tree := FromString(c.input)
+		tree.FillYield()
+		if !reflect.DeepEqual(tree.Yield, c.yield) {
+			t.Errorf("expected %v; got %v for tree %q", c.yield, tree.Yield, c.input)
+		}
+	}
+}
+
+func TestParseTreeFillPOS(t *testing.T) {
+	for _, c := range fillYieldPOSCases {
+		tree := FromString(c.input)
+		tree.FillPOS()
+		if !reflect.DeepEqual(tree.POS, c.pos) {
+			t.Errorf("expected %v; got %v for tree %q", c.pos, tree.POS, c.input)
+		}
+	}
+}
+
 func TestParseTreeFill(t *testing.T) {
-	flags := []int{0, FILL_LABEL_ID, FILL_SPAN, FILL_HEAD, FILL_HEAD_LEAF, FILL_UP_LINK, FILL_EVERYTHING}
+	flags := []int{0, FILL_LABEL_ID, FILL_SPAN, FILL_HEAD, FILL_HEAD_LEAF, FILL_YIELD, FILL_POS, FILL_UP_LINK, FILL_EVERYTHING}
 	finder := &heads.TableHeadFinder{nil, heads.HEAD_FINAL}
 	m := bimap.New()
 
@@ -138,24 +168,32 @@ func TestParseTreeFill(t *testing.T) {
 	tree.FillSpan()
 	tree.FillHead(finder)
 	tree.FillHeadLeaf()
+	tree.FillYield()
+	tree.FillPOS()
 	tree.Topology.FillUpLink()
 
 	for _, flag := range flags {
 		tree1 := FromString("((A (B C) (D E)))")
 		tree1.Fill(flag, m, finder)
-		if flag&FILL_LABEL_ID != 0 && !reflect.DeepEqual(tree.Id, tree1.Id) {
+		if (flag == FILL_EVERYTHING || flag&FILL_LABEL_ID != 0) && !reflect.DeepEqual(tree.Id, tree1.Id) {
 			t.Errorf("expected %v; got %v when FILL_LABEL_ID", tree.Id, tree1.Id)
 		}
-		if flag&FILL_SPAN != 0 && !reflect.DeepEqual(tree.Span, tree1.Span) {
+		if (flag == FILL_EVERYTHING || flag&FILL_SPAN != 0) && !reflect.DeepEqual(tree.Span, tree1.Span) {
 			t.Errorf("expected %v; got %v when FILL_SPAN", tree.Span, tree1.Span)
 		}
-		if flag&FILL_HEAD != 0 && !reflect.DeepEqual(tree.Head, tree1.Head) {
+		if (flag == FILL_EVERYTHING || flag&FILL_HEAD != 0) && !reflect.DeepEqual(tree.Head, tree1.Head) {
 			t.Errorf("expected %v; got %v when FILL_HEAD", tree.Head, tree1.Head)
 		}
-		if flag&FILL_HEAD_LEAF != 0 && !reflect.DeepEqual(tree.HeadLeaf, tree1.HeadLeaf) {
+		if (flag == FILL_EVERYTHING || flag&FILL_HEAD_LEAF != 0) && !reflect.DeepEqual(tree.HeadLeaf, tree1.HeadLeaf) {
 			t.Errorf("expected %v; got %v when FILL_HEAD_LEAF", tree.HeadLeaf, tree1.HeadLeaf)
 		}
-		if flag&FILL_UP_LINK != 0 && !reflect.DeepEqual(tree.Topology.UpLink, tree1.Topology.UpLink) {
+		if (flag == FILL_EVERYTHING || flag&FILL_YIELD != 0) && !reflect.DeepEqual(tree.Yield, tree1.Yield) {
+			t.Errorf("expected %v; got %v when FILL_YIELD", tree.Yield, tree1.Yield)
+		}
+		if (flag == FILL_EVERYTHING || flag&FILL_POS != 0) && !reflect.DeepEqual(tree.POS, tree1.POS) {
+			t.Errorf("expected %v; got %v when FILL_POS", tree.POS, tree1.POS)
+		}
+		if (flag == FILL_EVERYTHING || flag&FILL_UP_LINK != 0) && !reflect.DeepEqual(tree.Topology.UpLink, tree1.Topology.UpLink) {
 			t.Errorf("expected %v; got %v when FILL_UP_LINK", tree.Topology.UpLink, tree1.Topology.UpLink)
 		}
 	}

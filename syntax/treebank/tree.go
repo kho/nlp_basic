@@ -21,6 +21,8 @@ type ParseTree struct {
 	Span     []Span     // A [left, right) input span of the node
 	Head     []int      // The position of the head child of a give node; leaf's head child is some undefined value.
 	HeadLeaf []NodeId   // The head leaf of a give node; leaf's head is itself
+	Yield    []NodeId   // Leaf nodes
+	POS      []NodeId   // Pre-terminal nodes
 }
 
 type Span struct{ Left, Right int }
@@ -33,8 +35,10 @@ const (
 	FILL_SPAN
 	FILL_HEAD
 	FILL_HEAD_LEAF
+	FILL_YIELD
+	FILL_POS
 	FILL_UP_LINK
-	FILL_EVERYTHING = FILL_LABEL_ID | FILL_SPAN | FILL_HEAD | FILL_HEAD_LEAF | FILL_UP_LINK
+	FILL_EVERYTHING = FILL_LABEL_ID | FILL_SPAN | FILL_HEAD | FILL_HEAD_LEAF | FILL_YIELD | FILL_POS | FILL_UP_LINK
 )
 
 // Fill fills annotations specified by the flags. m may be nil as long
@@ -56,6 +60,12 @@ func (tree *ParseTree) Fill(flags int, m *bimap.Map, finder heads.HeadFinder) {
 	}
 	if flags&FILL_HEAD_LEAF != 0 {
 		tree.FillHeadLeaf()
+	}
+	if flags&FILL_YIELD != 0 {
+		tree.FillYield()
+	}
+	if flags&FILL_POS != 0 {
+		tree.FillPOS()
 	}
 	if flags&FILL_UP_LINK != 0 {
 		tree.Topology.FillUpLink()
@@ -183,6 +193,42 @@ func (tree *ParseTree) FillHeadLeaf() {
 		}
 	}
 	tree.HeadLeaf = hl
+}
+
+func (tree *ParseTree) FillYield() {
+	buf := tree.Yield[:0]
+	if tree.Topology.Root != NoNodeId {
+		dfsYield(tree.Topology, tree.Topology.Root, &buf)
+	}
+	tree.Yield = buf
+}
+
+func dfsYield(t *Topology, n NodeId, buf *[]NodeId) {
+	if t.Leaf(n) {
+		*buf = append(*buf, n)
+	} else {
+		for _, child := range t.Children[n] {
+			dfsYield(t, child, buf)
+		}
+	}
+}
+
+func (tree *ParseTree) FillPOS() {
+	buf := tree.POS[:0]
+	if tree.Topology.Root != NoNodeId {
+		dfsPOS(tree.Topology, tree.Topology.Root, &buf)
+	}
+	tree.POS = buf
+}
+
+func dfsPOS(t *Topology, n NodeId, buf *[]NodeId) {
+	if t.PreTerminal(n) {
+		*buf = append(*buf, n)
+	} else if !t.Leaf(n) {
+		for _, child := range t.Children[n] {
+			dfsPOS(t, child, buf)
+		}
+	}
 }
 
 // String writes out the tree in standard Treebank format. Label must
