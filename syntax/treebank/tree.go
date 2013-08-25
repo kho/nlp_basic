@@ -33,7 +33,8 @@ const (
 	FILL_SPAN
 	FILL_HEAD
 	FILL_HEAD_LEAF
-	FILL_EVERYTHING = FILL_LABEL_ID | FILL_SPAN | FILL_HEAD | FILL_HEAD_LEAF
+	FILL_UP_LINK
+	FILL_EVERYTHING = FILL_LABEL_ID | FILL_SPAN | FILL_HEAD | FILL_HEAD_LEAF | FILL_UP_LINK
 )
 
 // Fill fills annotations specified by the flags. m may be nil as long
@@ -55,6 +56,9 @@ func (tree *ParseTree) Fill(flags int, m *bimap.Map, finder heads.HeadFinder) {
 	}
 	if flags&FILL_HEAD_LEAF != 0 {
 		tree.FillHeadLeaf()
+	}
+	if flags&FILL_UP_LINK != 0 {
+		tree.Topology.FillUpLink()
 	}
 }
 

@@ -129,7 +129,7 @@ func TestParseTreeFillHeadLeaf(t *testing.T) {
 }
 
 func TestParseTreeFill(t *testing.T) {
-	flags := []int{0, FILL_LABEL_ID, FILL_SPAN, FILL_HEAD, FILL_HEAD_LEAF, FILL_EVERYTHING}
+	flags := []int{0, FILL_LABEL_ID, FILL_SPAN, FILL_HEAD, FILL_HEAD_LEAF, FILL_UP_LINK, FILL_EVERYTHING}
 	finder := &heads.TableHeadFinder{nil, heads.HEAD_FINAL}
 	m := bimap.New()
 
@@ -138,6 +138,7 @@ func TestParseTreeFill(t *testing.T) {
 	tree.FillSpan()
 	tree.FillHead(finder)
 	tree.FillHeadLeaf()
+	tree.Topology.FillUpLink()
 
 	for _, flag := range flags {
 		tree1 := FromString("((A (B C) (D E)))")
@@ -153,6 +154,9 @@ func TestParseTreeFill(t *testing.T) {
 		}
 		if flag&FILL_HEAD_LEAF != 0 && !reflect.DeepEqual(tree.HeadLeaf, tree1.HeadLeaf) {
 			t.Errorf("expected %v; got %v when FILL_HEAD_LEAF", tree.HeadLeaf, tree1.HeadLeaf)
+		}
+		if flag&FILL_UP_LINK != 0 && !reflect.DeepEqual(tree.Topology.UpLink, tree1.Topology.UpLink) {
+			t.Errorf("expected %v; got %v when FILL_UP_LINK", tree.Topology.UpLink, tree1.Topology.UpLink)
 		}
 	}
 
