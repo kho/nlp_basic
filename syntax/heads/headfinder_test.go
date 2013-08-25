@@ -120,6 +120,20 @@ func TestEnglishHeadFinderNP(t *testing.T) {
 			t.Errorf("expected %d; got %d as head of %q -> %q\n", input.head, head, "NP", input.children)
 		}
 	}
+	// Panic when called with NP and nil.
+	func() {
+		defer func() {
+			err := recover()
+			if err == nil {
+				t.Errorf("expected error; got nil")
+			}
+		}()
+		finder.FindHead("NP", nil)
+	}()
+	// Look-up the table when the parent is not NP.
+	if head := finder.FindHead("VP", []string{"NP", "VBD", "NP"}); head != 1 {
+		t.Errorf("expected %d; got %d as head of %q -> %q\n", 1, head, "VP", "NP VBD NP")
+	}
 }
 
 func TestChineseHeadFinderDP(t *testing.T) {
