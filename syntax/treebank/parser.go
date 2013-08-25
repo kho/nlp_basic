@@ -16,14 +16,14 @@ var (
 	ResidualInput     = errors.New("residual input")
 )
 
-// ParseString parses a single string to extract one tree and discards
-// the rest of the string.
+// ParseString parses a single string to extract one tree with only
+// its topology and labels and discards the rest of the string.
 func ParseString(input string) (*ParseTree, error) {
 	return NewParser(strings.NewReader(input)).Next()
 }
 
-// FromString converts a single string to extract one tree. Panics if
-// there is any error.
+// FromString converts a single string to extract one tree with only
+// its topology and labels. Panics if there is any error.
 func FromString(input string) *ParseTree {
 	p := NewParser(strings.NewReader(input))
 	tree, err := p.Next()
@@ -37,9 +37,9 @@ func FromString(input string) *ParseTree {
 	return tree
 }
 
-// ParseAll extracts all the trees from the remaining input until the
-// end of input or first parse error. A nil pointer is stored
-// everytime a NoParse is encountered.
+// ParseAll extracts all the trees with only the topology and labels
+// from the remaining input until the end of input or first parse
+// error. A nil pointer is stored everytime a NoParse is encountered.
 func ParseAll(input io.ByteScanner) (trees []*ParseTree, err error) {
 	p := NewParser(input)
 	tree, err := p.Next()
@@ -68,10 +68,11 @@ func NewParser(input io.ByteScanner) *Parser {
 	return &Parser{input: input, token: make([]byte, 256)}
 }
 
-// Next extracts the next parse tree from input. When succeeds, it
-// returns the tree and nil error. When it encounters an error when
-// reading the first token, it returns the IO error from the scanner;
-// otherwise it returns one of the above parser errors.
+// Next extracts the next parse tree with only the topology and label
+// from input. When succeeds, it returns the tree and nil error. When
+// it encounters an error when reading the first token, it returns the
+// IO error from the scanner; otherwise it returns one of the above
+// parser errors.
 func (p *Parser) Next() (*ParseTree, error) {
 	tree := &ParseTree{Topology: NewEmptyTopology(), Label: make([]string, 0, 16)}
 	_, err := p.parseS(tree)
