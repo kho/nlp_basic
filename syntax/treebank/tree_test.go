@@ -3,6 +3,7 @@ package treebank
 import (
 	"github.com/kho/nlp_basic/bimap"
 	"github.com/kho/nlp_basic/syntax/heads"
+	"reflect"
 	"testing"
 )
 
@@ -124,6 +125,42 @@ func TestParseTreeFillHeadLeaf(t *testing.T) {
 				t.Errorf("expected leaf %d; got %d as head for %q", c.leaf[i], leaf, tree.StringUnder(NodeId(i)))
 			}
 		}
+	}
+}
+
+func TestParseTreeFill(t *testing.T) {
+	flags := []int{0, FILL_LABEL_ID, FILL_SPAN, FILL_HEAD, FILL_HEAD_LEAF, FILL_EVERYTHING}
+	finder := &heads.TableHeadFinder{nil, heads.HEAD_FINAL}
+	m := bimap.New()
+
+	tree := FromString("((A (B C) (D E)))")
+	tree.RemapByLabel(m)
+	tree.FillSpan()
+	tree.FillHead(finder)
+	tree.FillHeadLeaf()
+
+	for _, flag := range flags {
+		tree1 := FromString("((A (B C) (D E)))")
+		tree1.Fill(flag, m, finder)
+		if flag&FILL_LABEL_ID != 0 && !reflect.DeepEqual(tree.Id, tree1.Id) {
+			t.Errorf("expected %v; got %v when FILL_LABEL_ID", tree.Id, tree1.Id)
+		}
+		if flag&FILL_SPAN != 0 && !reflect.DeepEqual(tree.Span, tree1.Span) {
+			t.Errorf("expected %v; got %v when FILL_SPAN", tree.Span, tree1.Span)
+		}
+		if flag&FILL_HEAD != 0 && !reflect.DeepEqual(tree.Head, tree1.Head) {
+			t.Errorf("expected %v; got %v when FILL_HEAD", tree.Head, tree1.Head)
+		}
+		if flag&FILL_HEAD_LEAF != 0 && !reflect.DeepEqual(tree.HeadLeaf, tree1.HeadLeaf) {
+			t.Errorf("expected %v; got %v when FILL_HEAD_LEAF", tree.HeadLeaf, tree1.HeadLeaf)
+		}
+	}
+
+	label := tree.Label
+	tree.Label = nil
+	tree.Fill(FILL_LABEL_ID, nil, nil)
+	if !reflect.DeepEqual(label, tree.Label) {
+		t.Errorf("expected %v; got %v after filling Label from Id", label, tree.Label)
 	}
 }
 

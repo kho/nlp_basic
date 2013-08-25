@@ -72,7 +72,8 @@ func NewParser(input io.ByteScanner) *Parser {
 // from input. When succeeds, it returns the tree and nil error. When
 // it encounters an error when reading the first token, it returns the
 // IO error from the scanner; otherwise it returns one of the above
-// parser errors.
+// parser errors. The nodes are created in the order they appear in
+// the text (i.e. pre-order).
 func (p *Parser) Next() (*ParseTree, error) {
 	tree := &ParseTree{Topology: NewEmptyTopology(), Label: make([]string, 0, 16)}
 	_, err := p.parseS(tree)

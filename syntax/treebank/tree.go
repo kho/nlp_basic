@@ -25,6 +25,39 @@ type ParseTree struct {
 
 type Span struct{ Left, Right int }
 
+// Group of constants that decides what to fill in ParseTree.Fill().
+const (
+	// When Label is available, always fills Id; otherwise use Id to
+	// fill Label.
+	FILL_LABEL_ID = 1 << iota
+	FILL_SPAN
+	FILL_HEAD
+	FILL_HEAD_LEAF
+	FILL_EVERYTHING = FILL_LABEL_ID | FILL_SPAN | FILL_HEAD | FILL_HEAD_LEAF
+)
+
+// Fill fills annotations specified by the flags. m may be nil as long
+// as the corresponding Remap call is valid. h may be nil as long as
+// FILL_HEAD or FILL_HEAD_LEAF are not marked.
+func (tree *ParseTree) Fill(flags int, m *bimap.Map, finder heads.HeadFinder) {
+	if flags&FILL_LABEL_ID != 0 {
+		if tree.Topology.NumNodes() == len(tree.Label) {
+			tree.RemapByLabel(m)
+		} else {
+			tree.RemapById(m)
+		}
+	}
+	if flags&FILL_SPAN != 0 {
+		tree.FillSpan()
+	}
+	if flags&(FILL_HEAD|FILL_HEAD_LEAF) != 0 {
+		tree.FillHead(finder)
+	}
+	if flags&FILL_HEAD_LEAF != 0 {
+		tree.FillHeadLeaf()
+	}
+}
+
 // RemapByLabel remaps Id by Label using the given mapping. If m is
 // nil, the mapping that is already stored is used.
 func (tree *ParseTree) RemapByLabel(m *bimap.Map) {
